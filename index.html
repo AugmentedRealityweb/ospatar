@@ -10,7 +10,8 @@
       background-color: #111827;
       color: #fff;
       font-family: Arial, sans-serif;
-      margin: 0; padding: 1rem;
+      margin: 0; 
+      padding: 1rem;
       min-height: 100vh;
     }
     .btn {
@@ -30,91 +31,119 @@
       padding: 1rem;
       border-radius: 6px;
     }
+    .order-box {
+      border: 1px solid #e78c00;
+      padding: 0.5rem;
+      margin-bottom: 1rem;
+      border-radius: 6px;
+    }
     .order-item {
       margin-left: 1rem;
     }
   </style>
 </head>
 <body>
-  <h1 class="text-2xl font-bold mb-4 text-center">Aplicație Ospătar</h1>
+  <h1 class="text-2xl font-bold mb-4 text-center">Aplicație Ospătar - Gestionare Mese</h1>
 
-  <div id="app" class="max-w-xl mx-auto">
-    <!-- 1) Afișăm lista meselor open -->
+  <div id="app" class="max-w-3xl mx-auto">
+    <!-- Buton: Vezi Mesele Deschise (sessions cu status="active") -->
     <div class="mb-4">
       <button class="btn" @click="fetchOpenTables">Vezi Mesele Deschise</button>
     </div>
+
+    <!-- Lista meselor deschise -->
     <div v-if="openTables.length > 0">
       <h2 class="text-xl font-bold mb-2">Mese Deschise:</h2>
-      <ul>
-        <li
-          v-for="(tbl, idx) in openTables"
-          :key="idx"
-          class="table-box"
-        >
-          <div class="flex justify-between items-center">
-            <strong>Masă: {{ tbl }}</strong>
-            <button class="btn" @click="showOrdersForTable(tbl)">Vezi Comenzi</button>
+      <div
+        v-for="(tbl, idx) in openTables"
+        :key="tbl.tableId"
+        class="table-box"
+      >
+        <div class="flex justify-between items-center">
+          <div>
+            <strong>Masa: {{ tbl.tableId }}</strong> 
+            <br/>
+            <em>(Cod sesiune: {{ tbl.sessionCode }})</em>
           </div>
-        </li>
-      </ul>
+          <button class="btn" @click="showOrders(tbl.tableId, tbl.sessionCode)">
+            Vezi Comenzi
+          </button>
+        </div>
+      </div>
     </div>
-    <hr class="my-4 border-gray-600"/>
 
-    <!-- 2) Introducere manuală tableCode -->
+    <hr class="my-4 border-gray-700"/>
+
+    <!-- Introducere manuala a tableId (dacă vrei să cauți direct masa) -->
     <div class="mb-4">
-      <label class="block mb-2">Introdu un cod de masă:</label>
+      <label class="block mb-2">Caută o masă (ex: Masa16):</label>
       <input
-        v-model="manualTableCode"
+        v-model="manualTableId"
         type="text"
-        placeholder="Ex: MASA16"
+        placeholder="Masa16"
         class="px-4 py-2 rounded text-black"
       />
-      <button class="btn ml-2" @click="showOrdersForTable(manualTableCode)">Caută</button>
+      <button class="btn ml-2" @click="findSession(manualTableId)">Caută</button>
     </div>
 
-    <!-- 3) Afișare comenzi pt tableCode selectat -->
-    <div v-if="currentTableCode" class="table-box">
-      <h2 class="text-xl font-bold mb-2">Comenzi pentru: {{ currentTableCode }}</h2>
-      <div v-if="orders.length === 0" class="italic">Nicio comandă găsită.</div>
+    <!-- Afișăm comenzile mesei selectate -->
+    <div v-if="currentTableId" class="table-box">
+      <h2 class="text-xl font-bold mb-2">
+        Masă: {{ currentTableId }}
+      </h2>
+      <p v-if="currentSessionCode">
+        Cod Sesiune: <strong>{{ currentSessionCode }}</strong>
+      </p>
+      <div v-if="orders.length === 0" class="italic mt-2">
+        Nicio comandă găsită (status=open) pentru această masă.
+      </div>
       <div v-else>
         <div
           v-for="(ord, idx) in orders"
           :key="ord.docId"
-          class="border-b border-gray-600 py-2"
+          class="order-box"
         >
           <div class="font-bold">
-            FirebaseID: {{ ord.docId }} | Client #{{ ord.clientNumber }}
+            Comanda #{{ ord.docId }} (Client #{{ ord.clientNumber }})
           </div>
           <ul class="order-item">
-            <li v-for="(item, iidx) in ord.items" :key="iidx">
-              {{ item.name }} x {{ item.quantity }} – {{ (item.price * item.quantity).toFixed(2) }} Lei
+            <li
+              v-for="(item, iidx) in ord.items"
+              :key="iidx"
+            >
+              {{ item.name }} x {{ item.quantity }} – {{ (item.price*item.quantity).toFixed(2) }} Lei
             </li>
           </ul>
           <div class="font-bold mt-1 text-[#f49032]">
             Subtotal: {{ ord.total.toFixed(2) }} Lei
           </div>
         </div>
-        <div class="mt-2 font-bold">Total masă: {{ tableSum }} Lei</div>
-        <button class="btn mt-2" @click="finalizeTable(currentTableCode)">Finalizează Masa</button>
+        <div class="mt-2 font-bold">
+          Total Masă: {{ totalTable }} Lei
+        </div>
+        <!-- Buton Finalizează Masa -->
+        <button class="btn mt-4" @click="finalizeTable(currentTableId)">Finalizează Masa</button>
       </div>
     </div>
   </div>
 
-  <!-- Firebase + Vue -->
+  <!-- Firebase + Vue (ES module) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
     import { 
-      getFirestore, 
-      collection, 
-      query, 
-      where, 
-      getDocs, 
-      doc, 
-      updateDoc 
+      getFirestore,
+      collection,
+      doc,
+      getDoc,
+      setDoc,
+      updateDoc,
+      getDocs,
+      query,
+      where
     } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
     import { createApp } from "https://cdn.jsdelivr.net/npm/vue@3/dist/vue.esm-browser.js";
 
-    /* Configurația Firebase (înlocuiește cu datele tale) */
+    /* Configurarea Firebase (înlocuiește cu datele tale) */
     const firebaseConfig = {
   apiKey: "AIzaSyBahkhy2GgUW2wM5dxghoVt2bv0-6ZyWqQ",
   authDomain: "restaurantapp-d0256.firebaseapp.com",
@@ -131,103 +160,140 @@
     const waiterApp = createApp({
       data() {
         return {
-          openTables: [],        // lista maselor "deschise" (fără duplicat)
-          manualTableCode: '',   // pentru introducere manuală
-          currentTableCode: null,// masa curentă selectată
-          orders: [],            // comenzi pt masa curentă
+          openTables: [],         // ex. [{tableId:"Masa16", sessionCode:"X7VH5"}, ...]
+          manualTableId: "",      // Căutare manuală
+          currentTableId: "",     // Masa curentă
+          currentSessionCode: "", // Codul sesiunii curente
+          orders: [],             // Comenzi open ale mesei curente
         };
       },
       computed: {
-        tableSum() {
+        totalTable() {
           let sum = 0;
-          this.orders.forEach(o => {
-            sum += o.total;
-          });
+          for (const ord of this.orders) {
+            sum += ord.total;
+          }
           return sum.toFixed(2);
         }
       },
       methods: {
-        // Preia toate documentele cu status="open", adună distinct tableId
+        // 1) Preia mesele deschise (sessions cu status="active")
         async fetchOpenTables() {
           try {
-            const cRef = collection(db, "orders");
-            const qRef = query(cRef, where("status", "==", "open"));
+            const cRef = collection(db, "sessions");
+            const qRef = query(cRef, where("status", "==", "active"));
             const snap = await getDocs(qRef);
 
-            const tablesSet = new Set();
+            this.openTables = [];
             snap.forEach(docSnap => {
               const data = docSnap.data();
-              if (data.tableId) {
-                tablesSet.add(data.tableId);
-              }
+              this.openTables.push({
+                tableId: docSnap.id,
+                sessionCode: data.sessionCode
+              });
             });
-
-            this.openTables = Array.from(tablesSet);
           } catch (e) {
             console.error("Eroare la fetchOpenTables:", e);
+            alert("Eroare la încărcarea meselor active!");
           }
         },
-        // Arată comenzile pt un tableCode (status="open")
-        async showOrdersForTable(tableCode) {
-          if (!tableCode) {
-            alert("Cod masă invalid!");
+
+        // 2) Găsește direct un document "sessions/tableId"
+        async findSession(tableId) {
+          if (!tableId.trim()) {
+            alert("Te rog introdu un ID masă valid!");
             return;
           }
-          this.currentTableCode = tableCode.trim().toUpperCase();
-          this.orders = [];
+          const docRef = doc(db, "sessions", tableId.trim());
+          const snap = await getDoc(docRef);
+          if (!snap.exists()) {
+            alert("Nu există nicio sesiune pt această masă!");
+            this.currentTableId = "";
+            this.currentSessionCode = "";
+            this.orders = [];
+            return;
+          }
+          const data = snap.data();
+          if (data.status === "closed" || !data.sessionCode) {
+            alert("Sesiunea pentru această masă este deja închisă sau nu există!");
+            this.currentTableId = "";
+            this.currentSessionCode = "";
+            this.orders = [];
+            return;
+          }
+          this.currentTableId = tableId.trim();
+          this.currentSessionCode = data.sessionCode;
+          // Preluăm comenzile open
+          await this.loadOrdersBySession(this.currentSessionCode);
+        },
 
+        // 3) Afișează comenzile când dai "Vezi Comenzi"
+        async showOrders(tableId, sessionCode) {
+          this.currentTableId = tableId;
+          this.currentSessionCode = sessionCode;
+          // Încărcăm comenzile
+          await this.loadOrdersBySession(sessionCode);
+        },
+
+        // 4) Încarcă comenzile (orders) pt un sessionCode, status="open"
+        async loadOrdersBySession(sCode) {
+          this.orders = [];
           try {
             const cRef = collection(db, "orders");
-            // Filtrăm doar comenzile open (dacă vrei să vezi și closed, elimină where("status","==","open")
-            const qRef = query(
-              cRef,
-              where("tableId", "==", this.currentTableCode),
-              where("status", "==", "open")
-            );
+            const qRef = query(cRef, where("sessionCode", "==", sCode), where("status", "==", "open"));
             const snap = await getDocs(qRef);
 
-            const allOrders = [];
             snap.forEach(docSnap => {
               const data = docSnap.data();
-              allOrders.push({ docId: docSnap.id, ...data });
+              data.docId = docSnap.id;
+              this.orders.push(data);
             });
-            this.orders = allOrders;
           } catch (e) {
-            console.error("Eroare la showOrdersForTable:", e);
+            console.error("Eroare la loadOrdersBySession:", e);
+            alert("Eroare la încărcarea comenzilor!");
           }
         },
-        // Finalizează masa => setăm status="closed"
-        async finalizeTable(tableCode) {
-          if (!confirm(`Ești sigur că vrei să finalizezi masa ${tableCode}?`)) {
+
+        // 5) Finalizează masa => setăm "sessions/tableId" => sessionCode=null, status="closed"
+        //    plus setăm pt "orders" => status="closed" unde sessionCode=sCode
+        async finalizeTable(tableId) {
+          if (!confirm(`Ești sigur că vrei să finalizezi masa ${tableId}?`)) {
             return;
           }
           try {
-            const cRef = collection(db, "orders");
-            const qRef = query(
-              cRef,
-              where("tableId", "==", tableCode),
-              where("status", "==", "open")
-            );
-            const snap = await getDocs(qRef);
+            // 5a) Setăm sessions/tableId => { sessionCode:null, status:"closed" }
+            const docRef = doc(db, "sessions", tableId);
+            await updateDoc(docRef, { sessionCode: null, status: "closed" });
 
-            for (const docSnap of snap.docs) {
-              const ref = doc(db, "orders", docSnap.id);
-              await updateDoc(ref, { status: "closed" });
+            // 5b) Luăm sessionCode curent => setăm orders => status="closed"
+            const sCode = this.currentSessionCode;
+            if (!sCode) {
+              alert("Nu există un sessionCode pt masa curentă!");
+            } else {
+              // Toate comenzile open cu sessionCode => setăm status="closed"
+              const cRef = collection(db, "orders");
+              const qRef = query(cRef, where("sessionCode", "==", sCode), where("status", "==", "open"));
+              const snap = await getDocs(qRef);
+              for (const docSnap of snap.docs) {
+                const ordRef = doc(db, "orders", docSnap.id);
+                await updateDoc(ordRef, { status: "closed" });
+              }
             }
-            alert(`Masa ${tableCode} a fost închisă!`);
-
-            // Golește
-            this.currentTableCode = null;
+            alert(`Masa ${tableId} a fost închisă!`);
+            // Resetare
+            this.currentTableId = "";
+            this.currentSessionCode = "";
             this.orders = [];
-            this.fetchOpenTables(); // reîncărcăm lista meselor open
+            // Re-afișăm openTables
+            this.fetchOpenTables();
           } catch (e) {
-            console.error("Eroare la finalizare masă:", e);
+            console.error("Eroare la finalizeTable:", e);
             alert("Eroare la finalizarea mesei!");
           }
         }
       },
       mounted() {
-        // opțional, încărcăm direct openTables
+        // Opțional: încărcăm direct openTables
         this.fetchOpenTables();
       }
     });
