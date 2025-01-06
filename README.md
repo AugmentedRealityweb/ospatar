@@ -219,8 +219,7 @@
     }
 
     function onScanFailure(error) {
-      // E normal să tot apară la fps=10, "Scanarea a eșuat" până detectează un cod
-      // console.warn("Scan fail:", error);
+      console.warn("Scanarea a eșuat:", error);
     }
 
     // Pornim scanner-ul
