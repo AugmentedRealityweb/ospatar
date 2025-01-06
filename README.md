@@ -16,18 +16,14 @@
       width: 300px;
       margin: 0 auto;
     }
-    #orderDetails {
+    #orderDetails,
+    .table-details {
       margin-top: 20px;
       text-align: left;
       display: none;
     }
     .order-item {
       margin-bottom: 10px;
-    }
-    .table-details {
-      margin-top: 20px;
-      display: none;
-      text-align: left;
     }
     .table-order {
       margin-bottom: 1rem;
@@ -38,6 +34,9 @@
 </head>
 <body>
   <h1>Scanare Cod QR Comandă</h1>
+  <p>Folosește camera pentru a scana un link de tip <code>https://.../confirm.html?docId=XYZ</code> sau <code>?tableId=Masa16</code>.</p>
+
+  <!-- Div unde apare preview-ul camerei + detectarea QR -->
   <div id="reader"></div>
 
   <!-- Afișare detalii unei singure comenzi (docId) -->
@@ -58,13 +57,23 @@
     <h3>Total masă: <span id="tableTotal"></span> Lei</h3>
   </div>
 
-  <!-- html5-qrcode -->
+  <!-- Biblioteca html5-qrcode (pentru scanare) -->
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-  <!-- Firebase -->
+
+  <!-- Firebase + Firestore (ES module) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-    import { getFirestore, doc, getDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+    import { 
+      getFirestore, 
+      doc, 
+      getDoc, 
+      collection, 
+      query, 
+      where, 
+      getDocs 
+    } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
+    // Config Firebase
     const firebaseConfig = {
       apiKey: "AIzaSyBahkhy2GgUW2wM5dxghoVt2bv0-6ZyWqQ",
       authDomain: "restaurantapp-d0256.firebaseapp.com",
@@ -74,11 +83,10 @@
       appId: "1:275208346650:web:f262b8ec49242d4b9945a3",
       measurementId: "G-F44TB27G17"
     };
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
 
-    const firebaseApp = initializeApp(firebaseConfig);
-    const db = getFirestore(firebaseApp);
-
-    // Citește o comandă pe baza docId
+    // Citește o comandă (docId)
     async function fetchOrderByDocId(docId) {
       const docRef = doc(db, "orders", docId);
       const docSnap = await getDoc(docRef);
@@ -88,18 +96,21 @@
       return null;
     }
 
-    // Citește toate comenzile pentru un tableId
+    // Citește toate comenzile pt tableId
     async function fetchOrdersForTable(tableId) {
-      const q = query(collection(db, "orders"), where("tableId", "==", tableId));
+      const q = query(
+        collection(db, "orders"), 
+        where("tableId", "==", tableId)
+      );
       const querySnapshot = await getDocs(q);
       const orders = [];
-      querySnapshot.forEach((doc) => {
-        orders.push({ docId: doc.id, ...doc.data() });
+      querySnapshot.forEach((d) => {
+        orders.push({ docId: d.id, ...d.data() });
       });
       return orders;
     }
 
-    // Afișează o singură comandă
+    // Afișare single order
     function displaySingleOrder(order) {
       document.getElementById('orderFirebaseId').textContent = order.docId;
       document.getElementById('tableId').textContent = order.tableId || '(nespecificat)';
@@ -108,9 +119,10 @@
       let totalPrice = 0;
       const itemsList = document.getElementById('itemsList');
       itemsList.innerHTML = '';
+
       order.items.forEach(item => {
         const li = document.createElement('li');
-        const subTotal = (item.price * item.quantity);
+        const subTotal = item.price * item.quantity;
         totalPrice += subTotal;
         li.textContent = `${item.name} x ${item.quantity} – ${subTotal.toFixed(2)} Lei`;
         li.classList.add('order-item');
@@ -120,7 +132,7 @@
       document.getElementById('orderDetails').style.display = 'block';
     }
 
-    // Afișează toate comenzile pentru un tableId
+    // Afișare comenzi pt masă
     function displayAllOrdersForTable(tableId, orders) {
       const tableDetailsEl = document.getElementById('tableDetails');
       const scannedTableIdEl = document.getElementById('scannedTableId');
@@ -131,7 +143,7 @@
       tableOrdersEl.innerHTML = '';
 
       let tableSum = 0;
-      orders.forEach((ord, idx) => {
+      orders.forEach(ord => {
         let sumOrder = 0;
         ord.items.forEach(item => {
           sumOrder += item.price * item.quantity;
@@ -142,7 +154,7 @@
         divOrd.classList.add('table-order');
         let html = `
           <h4>Comanda #${ord.docId}</h4>
-          <p>Client: ${ord.clientNumber || '-'} </p>
+          <p>Client: ${ord.clientNumber || '-'}</p>
           <ul>
         `;
         ord.items.forEach(item => {
@@ -157,38 +169,40 @@
       tableDetailsEl.style.display = 'block';
     }
 
-    // On scan success
-    function onScanSuccess(decodedText, decodedResult) {
-      // Exemplu: textul decodat e un link cu docId:  restaurant.com/confirm.html?docId=ABC123
-      // 1) extragem param docId
-      const url = new URL(decodedText);
-      const docId = url.searchParams.get("docId");
-      // De exemplu, dacă e "restaurant.com/orders?tableId=Masa16", extragem tableId
-      const tableId = url.searchParams.get("tableId");
+    function onScanSuccess(decodedText) {
+      console.log("Scan ok, decodedText=", decodedText);
+      let urlObj;
+      try {
+        urlObj = new URL(decodedText); 
+      } catch(e) {
+        alert("Conținutul QR nu este un URL valid! " + decodedText);
+        return;
+      }
 
-      console.log("QR decodat -> docId =", docId, " | tableId =", tableId);
+      const docId = urlObj.searchParams.get("docId");
+      const tableId = urlObj.searchParams.get("tableId");
+      console.log("docId=", docId, "tableId=", tableId);
 
-      // Oprim scanner-ul
-      html5QrcodeScanner.clear().then(_ => {
-        // 2) Afișăm date
+      // Oprim scanner-ul (ca să nu tot scaneze)
+      html5QrcodeScanner.clear().then(() => {
         if (docId) {
-          // Afișăm datele unei comenzi
+          // Afișare comandă + optionally toate comenzile mesei
           fetchOrderByDocId(docId).then(order => {
-            if (order) {
-              displaySingleOrder(order);
-
-              // Bonus: Dacă vrei să afișezi toate comenzile de la masă:
-              if (order.tableId) {
-                fetchOrdersForTable(order.tableId).then(allOrders => {
-                  displayAllOrdersForTable(order.tableId, allOrders);
-                });
-              }
-            } else {
-              alert("Comandă inexistentă!");
+            if (!order) {
+              alert("Comandă inexistentă în Firestore!");
+              return;
+            }
+            // Afișăm comanda
+            displaySingleOrder(order);
+            // Bonus: afișăm toate comenzile de la aceeași masă
+            if (order.tableId) {
+              fetchOrdersForTable(order.tableId).then(allOrders => {
+                displayAllOrdersForTable(order.tableId, allOrders);
+              });
             }
           });
         } else if (tableId) {
-          // direct fetchOrdersForTable
+          // direct: toate comenzile mesei
           fetchOrdersForTable(tableId).then(orders => {
             if (orders.length === 0) {
               alert("Nu există comenzi pt masă: " + tableId);
@@ -197,20 +211,20 @@
             }
           });
         } else {
-          alert("QR code invalid!");
+          alert("QR code invalid: nu conține docId sau tableId");
         }
       }).catch(error => {
-        console.error("Eroare la oprirea scanner-ului: ", error);
+        console.error("Eroare la oprirea scanner-ului:", error);
       });
     }
 
-    // On scan failure
     function onScanFailure(error) {
-      console.warn(`Scanarea a eșuat. Motiv: ${error}`);
+      // E normal să tot apară la fps=10, "Scanarea a eșuat" până detectează un cod
+      // console.warn("Scan fail:", error);
     }
 
-    // Configurare scanner
-    let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+    // Pornim scanner-ul
+    const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
     html5QrcodeScanner.render(onScanSuccess, onScanFailure);
   </script>
 </body>
