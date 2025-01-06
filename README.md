@@ -16,7 +16,7 @@
       width: 300px;
       margin: 0 auto;
     }
-    #orderDetails, .table-details {
+    #orderDetails {
       margin-top: 20px;
       text-align: left;
       display: none;
@@ -24,22 +24,15 @@
     .order-item {
       margin-bottom: 10px;
     }
+    .table-details {
+      margin-top: 20px;
+      display: none;
+      text-align: left;
+    }
     .table-order {
       margin-bottom: 1rem;
       border: 1px solid #e78c00;
       padding: 0.5rem;
-    }
-    button {
-      background-color: #e78c00;
-      color: #fff;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 5px;
-      cursor: pointer;
-      font-size: 16px;
-    }
-    button:hover {
-      background-color: #d35400;
     }
   </style>
 </head>
@@ -47,6 +40,7 @@
   <h1>Scanare Cod QR Comandă</h1>
   <div id="reader"></div>
 
+  <!-- Afișare detalii unei singure comenzi (docId) -->
   <div id="orderDetails">
     <h2>Detalii Comandă</h2>
     <p><strong>ID Firebase:</strong> <span id="orderFirebaseId"></span></p>
@@ -57,15 +51,16 @@
     <p><strong>Total:</strong> <span id="totalPrice"></span> Lei</p>
   </div>
 
+  <!-- Afișare detalii pt o masă întreagă (toate comenzile cu tableId) -->
   <div class="table-details" id="tableDetails">
     <h2>Comenzi pentru Masă: <span id="scannedTableId"></span></h2>
     <div id="tableOrders"></div>
     <h3>Total masă: <span id="tableTotal"></span> Lei</h3>
   </div>
 
-  <button id="resetButton" onclick="resetScannedOrders()">Resetează Scanările</button>
-
-  <script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js"></script>
+  <!-- html5-qrcode -->
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <!-- Firebase -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
     import { getFirestore, doc, getDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
@@ -82,8 +77,8 @@
 
     const firebaseApp = initializeApp(firebaseConfig);
     const db = getFirestore(firebaseApp);
-    let scannedOrders = [];
 
+    // Citește o comandă pe baza docId
     async function fetchOrderByDocId(docId) {
       const docRef = doc(db, "orders", docId);
       const docSnap = await getDoc(docRef);
@@ -93,6 +88,7 @@
       return null;
     }
 
+    // Citește toate comenzile pentru un tableId
     async function fetchOrdersForTable(tableId) {
       const q = query(collection(db, "orders"), where("tableId", "==", tableId));
       const querySnapshot = await getDocs(q);
@@ -103,10 +99,12 @@
       return orders;
     }
 
+    // Afișează o singură comandă
     function displaySingleOrder(order) {
       document.getElementById('orderFirebaseId').textContent = order.docId;
       document.getElementById('tableId').textContent = order.tableId || '(nespecificat)';
       document.getElementById('clientId').textContent = order.clientNumber || '0';
+
       let totalPrice = 0;
       const itemsList = document.getElementById('itemsList');
       itemsList.innerHTML = '';
@@ -122,16 +120,18 @@
       document.getElementById('orderDetails').style.display = 'block';
     }
 
+    // Afișează toate comenzile pentru un tableId
     function displayAllOrdersForTable(tableId, orders) {
       const tableDetailsEl = document.getElementById('tableDetails');
       const scannedTableIdEl = document.getElementById('scannedTableId');
       const tableOrdersEl = document.getElementById('tableOrders');
       const tableTotalEl = document.getElementById('tableTotal');
+
       scannedTableIdEl.textContent = tableId;
       tableOrdersEl.innerHTML = '';
 
       let tableSum = 0;
-      orders.forEach(ord => {
+      orders.forEach((ord, idx) => {
         let sumOrder = 0;
         ord.items.forEach(item => {
           sumOrder += item.price * item.quantity;
@@ -142,7 +142,7 @@
         divOrd.classList.add('table-order');
         let html = `
           <h4>Comanda #${ord.docId}</h4>
-          <p>Client: ${ord.clientNumber || '-'}</p>
+          <p>Client: ${ord.clientNumber || '-'} </p>
           <ul>
         `;
         ord.items.forEach(item => {
@@ -157,46 +157,59 @@
       tableDetailsEl.style.display = 'block';
     }
 
-    function onScanSuccess(decodedText) {
+    // On scan success
+    function onScanSuccess(decodedText, decodedResult) {
+      // Exemplu: textul decodat e un link cu docId:  restaurant.com/confirm.html?docId=ABC123
+      // 1) extragem param docId
       const url = new URL(decodedText);
       const docId = url.searchParams.get("docId");
+      // De exemplu, dacă e "restaurant.com/orders?tableId=Masa16", extragem tableId
       const tableId = url.searchParams.get("tableId");
 
-      if (docId) {
-        fetchOrderByDocId(docId).then(order => {
-          if (order) {
-            scannedOrders.push(order);
-            displayAllOrdersForTable(order.tableId, scannedOrders);
-          } else {
-            alert("Comandă inexistentă!");
-          }
-        });
-      } else if (tableId) {
-        fetchOrdersForTable(tableId).then(orders => {
-          if (orders.length === 0) {
-            alert("Nu există comenzi pt masă: " + tableId);
-          } else {
-            scannedOrders = orders;
-            displayAllOrdersForTable(tableId, scannedOrders);
-          }
-        });
-      } else {
-        alert("QR code invalid!");
-      }
+      console.log("QR decodat -> docId =", docId, " | tableId =", tableId);
+
+      // Oprim scanner-ul
+      html5QrcodeScanner.clear().then(_ => {
+        // 2) Afișăm date
+        if (docId) {
+          // Afișăm datele unei comenzi
+          fetchOrderByDocId(docId).then(order => {
+            if (order) {
+              displaySingleOrder(order);
+
+              // Bonus: Dacă vrei să afișezi toate comenzile de la masă:
+              if (order.tableId) {
+                fetchOrdersForTable(order.tableId).then(allOrders => {
+                  displayAllOrdersForTable(order.tableId, allOrders);
+                });
+              }
+            } else {
+              alert("Comandă inexistentă!");
+            }
+          });
+        } else if (tableId) {
+          // direct fetchOrdersForTable
+          fetchOrdersForTable(tableId).then(orders => {
+            if (orders.length === 0) {
+              alert("Nu există comenzi pt masă: " + tableId);
+            } else {
+              displayAllOrdersForTable(tableId, orders);
+            }
+          });
+        } else {
+          alert("QR code invalid!");
+        }
+      }).catch(error => {
+        console.error("Eroare la oprirea scanner-ului: ", error);
+      });
     }
 
+    // On scan failure
     function onScanFailure(error) {
       console.warn(`Scanarea a eșuat. Motiv: ${error}`);
     }
 
-    function resetScannedOrders() {
-      scannedOrders = [];
-      document.getElementById('tableDetails').style.display = 'none';
-      document.getElementById('orderDetails').style.display = 'none';
-      html5QrcodeScanner.clear();
-      html5QrcodeScanner.render(onScanSuccess, onScanFailure);
-    }
-
+    // Configurare scanner
     let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
     html5QrcodeScanner.render(onScanSuccess, onScanFailure);
   </script>
