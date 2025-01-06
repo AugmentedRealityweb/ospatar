@@ -2,103 +2,211 @@
 <html lang="ro">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ospătar - Scanare Cod QR</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ospătar - Gestionare Mese</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      background-color: #111827;
-      color: #fff;
-      padding: 20px;
+      background-color: #111827; color: #fff;
+      font-family: Arial, sans-serif; margin: 0; padding: 1rem;
     }
-    #reader {
-      width: 300px;
-      margin: 20px auto;
+    .btn {
+      background-color: #f49032; padding: 8px 16px; border-radius: 6px; color: #fff; cursor: pointer;
     }
-    #orderDetails, .table-details {
-      margin-top: 20px;
-      text-align: left;
-      display: none;
+    .btn:hover {
+      background-color: #d35400;
+    }
+    .table-box {
+      border: 1px solid #f49032; margin-bottom: 1rem; padding: 1rem; border-radius: 6px;
     }
     .order-item {
-      margin-bottom: 10px;
-    }
-    .table-order {
-      margin-bottom: 1rem;
-      border: 1px solid #e78c00;
-      padding: 0.5rem;
+      margin-left: 1rem;
     }
   </style>
 </head>
 <body>
-  <h1>Scanare Cod QR Comandă</h1>
-  <p>Folosește camera pentru a scana un cod QR care conține informații despre comandă.</p>
-  
-  <div id="reader"></div>
+  <h1 class="text-2xl font-bold mb-4 text-center">Aplicație Ospătar</h1>
 
-  <!-- Afișare detalii comandă -->
-  <div id="orderDetails">
-    <h2>Detalii Comandă</h2>
-    <p><strong>ID Firebase:</strong> <span id="orderFirebaseId"></span></p>
-    <p><strong>Masă:</strong> <span id="tableId"></span></p>
-    <p><strong>Client #:</strong> <span id="clientId"></span></p>
-    <h3>Produse:</h3>
-    <ul id="itemsList"></ul>
-    <p><strong>Total:</strong> <span id="totalPrice"></span> Lei</p>
+  <div id="app" class="max-w-xl mx-auto">
+    <!-- 1) Afișăm lista meselor open -->
+    <div class="mb-4">
+      <button class="btn" @click="fetchOpenTables">Vezi Mesele Deschise</button>
+    </div>
+    <div v-if="openTables.length > 0">
+      <h2 class="text-xl font-bold mb-2">Mese Deschise:</h2>
+      <ul>
+        <li
+          v-for="(tbl, idx) in openTables"
+          :key="idx"
+          class="table-box"
+        >
+          <div class="flex justify-between items-center">
+            <strong>Masă: {{ tbl.tableCode }}</strong>
+            <button class="btn" @click="showOrdersForTable(tbl.tableCode)">Vezi Comenzi</button>
+          </div>
+        </li>
+      </ul>
+    </div>
+    <hr class="my-4 border-gray-600"/>
+
+    <!-- 2) Introducere manuală tableCode -->
+    <div class="mb-4">
+      <label class="block mb-2">Introdu un cod de masă:</label>
+      <input
+        v-model="manualTableCode"
+        type="text"
+        placeholder="Ex: MASA16"
+        class="px-4 py-2 rounded text-black"
+      />
+      <button class="btn ml-2" @click="showOrdersForTable(manualTableCode)">Caută</button>
+    </div>
+
+    <!-- 3) Afișare comenzi pt tableCode selectat -->
+    <div v-if="currentTableCode" class="table-box">
+      <h2 class="text-xl font-bold mb-2">Comenzi pentru: {{ currentTableCode }}</h2>
+      <div v-if="orders.length === 0" class="italic">Nicio comandă găsită.</div>
+      <div v-else>
+        <div
+          v-for="(ord, idx) in orders"
+          :key="ord.docId"
+          class="border-b border-gray-600 py-2"
+        >
+          <div class="font-bold">
+            DocID: {{ ord.docId }} | Client #{{ ord.clientNumber }}
+          </div>
+          <ul class="order-item">
+            <li v-for="(item, iidx) in ord.items" :key="iidx">
+              {{ item.name }} x {{ item.quantity }} – {{ (item.price * item.quantity).toFixed(2) }} Lei
+            </li>
+          </ul>
+          <div class="font-bold mt-1 text-[#f49032]">
+            Subtotal: {{ ord.total.toFixed(2) }} Lei
+          </div>
+        </div>
+        <div class="mt-2 font-bold">Total masă: {{ tableSum }} Lei</div>
+        <button class="btn mt-2" @click="finalizeTable(currentTableCode)">Finalizează Masa</button>
+      </div>
+    </div>
   </div>
 
-  <div class="table-details" id="tableDetails">
-    <h2>Comenzi pentru Masă: <span id="scannedTableId"></span></h2>
-    <div id="tableOrders"></div>
-    <h3>Total masă: <span id="tableTotal"></span> Lei</h3>
-  </div>
+  <!-- Firebase + Vue -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+    import { 
+      getFirestore, 
+      collection, 
+      query, 
+      where, 
+      getDocs, 
+      doc, 
+      updateDoc 
+    } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
-  <!-- Biblioteca html5-qrcode -->
-  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    const firebaseConfig = {
+      /* ... același config ... */
+      apiKey: "xxx",
+      authDomain: "xxx.firebaseapp.com",
+      projectId: "xxx",
+      storageBucket: "xxx.appspot.com",
+      messagingSenderId: "xxx",
+      appId: "xxx",
+      measurementId: "xxx"
+    };
 
-  <script>
-    // Configurare QR scanner
-    const html5QrcodeScanner = new Html5QrcodeScanner(
-      "reader",
-      { fps: 10, qrbox: 250 }
-    );
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
 
-    // On success
-    function onScanSuccess(decodedText, decodedResult) {
-      console.log(`Cod QR detectat: ${decodedText}`);
-      let urlObj;
+    const vueApp = Vue.createApp({
+      data() {
+        return {
+          openTables: [],        // Mese (distinct) care au status="open"
+          manualTableCode: '',   // pt căutare manuală
+          currentTableCode: null,// Masa selectată
+          orders: [],            // comenzi pt masa curentă
+        };
+      },
+      computed: {
+        tableSum() {
+          let sum = 0;
+          this.orders.forEach(o => sum += o.total);
+          return sum.toFixed(2);
+        }
+      },
+      methods: {
+        async fetchOpenTables() {
+          try {
+            // Preluăm toate documentele cu status="open"
+            const cRef = collection(db, "orders");
+            const qRef = query(cRef, where("status", "==", "open"));
+            const snap = await getDocs(qRef);
 
-      try {
-        urlObj = new URL(decodedText);
-      } catch (e) {
-        alert("QR code invalid! Conținutul nu este un URL valid.");
-        return;
+            // strângem la un loc distinct tableCode
+            const tablesSet = new Set();
+            snap.forEach(docSnap => {
+              const data = docSnap.data();
+              tablesSet.add(data.tableCode);
+            });
+
+            // openTables devine un array de obiecte { tableCode: 'MASA16' }
+            this.openTables = Array.from(tablesSet).map(tc => ({ tableCode: tc }));
+          } catch (e) {
+            console.error("Eroare la fetchOpenTables:", e);
+          }
+        },
+        async showOrdersForTable(tableCode) {
+          if (!tableCode) {
+            alert("Cod masă invalid!");
+            return;
+          }
+          this.currentTableCode = tableCode.trim().toUpperCase();
+          this.orders = [];
+
+          try {
+            const cRef = collection(db, "orders");
+            const qRef = query(cRef, where("tableCode", "==", this.currentTableCode), where("status", "==", "open"));
+            const snap = await getDocs(qRef);
+            const allOrders = [];
+            snap.forEach(docSnap => {
+              const data = docSnap.data();
+              allOrders.push({ docId: docSnap.id, ...data });
+            });
+            this.orders = allOrders;
+          } catch (e) {
+            console.error("Eroare la showOrdersForTable:", e);
+          }
+        },
+        async finalizeTable(tableCode) {
+          if (!confirm(`Ești sigur că vrei să finalizezi masa ${tableCode}?`)) {
+            return;
+          }
+          // 1) Găsim toate doc-urile open cu tableCode=...
+          // 2) updateDoc(..., {status:"closed"})
+          try {
+            const cRef = collection(db, "orders");
+            const qRef = query(cRef, where("tableCode", "==", tableCode), where("status", "==", "open"));
+            const snap = await getDocs(qRef);
+            for (const docSnap of snap.docs) {
+              const ref = doc(db, "orders", docSnap.id);
+              await updateDoc(ref, { status: "closed" });
+            }
+            alert(`Masa ${tableCode} a fost închisă!`);
+
+            // Odată închisă, golește orders și openTables / reîmprospătează
+            this.currentTableCode = null;
+            this.orders = [];
+            this.fetchOpenTables();
+          } catch (e) {
+            console.error("Eroare la finalizare masă:", e);
+          }
+        }
+      },
+      mounted() {
+        // optional, putem afișa direct openTables la încărcare
+        this.fetchOpenTables();
       }
+    });
 
-      const docId = urlObj.searchParams.get("docId");
-      const tableId = urlObj.searchParams.get("tableId");
-
-      console.log("Decodat:", { docId, tableId });
-
-      if (docId) {
-        alert(`Comandă detectată cu docId: ${docId}`);
-        // Aici poți adăuga funcția pentru a căuta comenzile.
-      } else if (tableId) {
-        alert(`Masa detectată: ${tableId}`);
-        // Aici poți afișa comenzile pentru întreaga masă.
-      } else {
-        alert("QR code nu conține parametrii docId sau tableId.");
-      }
-    }
-
-    // On failure
-    function onScanFailure(error) {
-      console.warn(`Scanarea a eșuat: ${error}`);
-    }
-
-    // Inițializare scanner
-    html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+    vueApp.mount('#app');
   </script>
 </body>
 </html>
