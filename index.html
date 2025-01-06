@@ -7,17 +7,28 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
-      background-color: #111827; color: #fff;
-      font-family: Arial, sans-serif; margin: 0; padding: 1rem;
+      background-color: #111827;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      margin: 0; padding: 1rem;
+      min-height: 100vh;
     }
     .btn {
-      background-color: #f49032; padding: 8px 16px; border-radius: 6px; color: #fff; cursor: pointer;
+      background-color: #f49032;
+      padding: 8px 16px;
+      border-radius: 6px;
+      color: #fff;
+      cursor: pointer;
+      border: none;
     }
     .btn:hover {
       background-color: #d35400;
     }
     .table-box {
-      border: 1px solid #f49032; margin-bottom: 1rem; padding: 1rem; border-radius: 6px;
+      border: 1px solid #f49032;
+      margin-bottom: 1rem;
+      padding: 1rem;
+      border-radius: 6px;
     }
     .order-item {
       margin-left: 1rem;
@@ -41,8 +52,8 @@
           class="table-box"
         >
           <div class="flex justify-between items-center">
-            <strong>Masă: {{ tbl.tableCode }}</strong>
-            <button class="btn" @click="showOrdersForTable(tbl.tableCode)">Vezi Comenzi</button>
+            <strong>Masă: {{ tbl }}</strong>
+            <button class="btn" @click="showOrdersForTable(tbl)">Vezi Comenzi</button>
           </div>
         </li>
       </ul>
@@ -72,7 +83,7 @@
           class="border-b border-gray-600 py-2"
         >
           <div class="font-bold">
-            DocID: {{ ord.docId }} | Client #{{ ord.clientNumber }}
+            FirebaseID: {{ ord.docId }} | Client #{{ ord.clientNumber }}
           </div>
           <ul class="order-item">
             <li v-for="(item, iidx) in ord.items" :key="iidx">
@@ -101,9 +112,10 @@
       doc, 
       updateDoc 
     } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+    import { createApp } from "https://cdn.jsdelivr.net/npm/vue@3/dist/vue.esm-browser.js";
 
+    /* Configurația Firebase (înlocuiește cu datele tale) */
     const firebaseConfig = {
-      /* ... același config ... */
       apiKey: "xxx",
       authDomain: "xxx.firebaseapp.com",
       projectId: "xxx",
@@ -116,43 +128,46 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    const vueApp = Vue.createApp({
+    const waiterApp = createApp({
       data() {
         return {
-          openTables: [],        // Mese (distinct) care au status="open"
-          manualTableCode: '',   // pt căutare manuală
-          currentTableCode: null,// Masa selectată
+          openTables: [],        // lista maselor "deschise" (fără duplicat)
+          manualTableCode: '',   // pentru introducere manuală
+          currentTableCode: null,// masa curentă selectată
           orders: [],            // comenzi pt masa curentă
         };
       },
       computed: {
         tableSum() {
           let sum = 0;
-          this.orders.forEach(o => sum += o.total);
+          this.orders.forEach(o => {
+            sum += o.total;
+          });
           return sum.toFixed(2);
         }
       },
       methods: {
+        // Preia toate documentele cu status="open", adună distinct tableId
         async fetchOpenTables() {
           try {
-            // Preluăm toate documentele cu status="open"
             const cRef = collection(db, "orders");
             const qRef = query(cRef, where("status", "==", "open"));
             const snap = await getDocs(qRef);
 
-            // strângem la un loc distinct tableCode
             const tablesSet = new Set();
             snap.forEach(docSnap => {
               const data = docSnap.data();
-              tablesSet.add(data.tableCode);
+              if (data.tableId) {
+                tablesSet.add(data.tableId);
+              }
             });
 
-            // openTables devine un array de obiecte { tableCode: 'MASA16' }
-            this.openTables = Array.from(tablesSet).map(tc => ({ tableCode: tc }));
+            this.openTables = Array.from(tablesSet);
           } catch (e) {
             console.error("Eroare la fetchOpenTables:", e);
           }
         },
+        // Arată comenzile pt un tableCode (status="open")
         async showOrdersForTable(tableCode) {
           if (!tableCode) {
             alert("Cod masă invalid!");
@@ -163,8 +178,14 @@
 
           try {
             const cRef = collection(db, "orders");
-            const qRef = query(cRef, where("tableCode", "==", this.currentTableCode), where("status", "==", "open"));
+            // Filtrăm doar comenzile open (dacă vrei să vezi și closed, elimină where("status","==","open")
+            const qRef = query(
+              cRef,
+              where("tableId", "==", this.currentTableCode),
+              where("status", "==", "open")
+            );
             const snap = await getDocs(qRef);
+
             const allOrders = [];
             snap.forEach(docSnap => {
               const data = docSnap.data();
@@ -175,38 +196,43 @@
             console.error("Eroare la showOrdersForTable:", e);
           }
         },
+        // Finalizează masa => setăm status="closed"
         async finalizeTable(tableCode) {
           if (!confirm(`Ești sigur că vrei să finalizezi masa ${tableCode}?`)) {
             return;
           }
-          // 1) Găsim toate doc-urile open cu tableCode=...
-          // 2) updateDoc(..., {status:"closed"})
           try {
             const cRef = collection(db, "orders");
-            const qRef = query(cRef, where("tableCode", "==", tableCode), where("status", "==", "open"));
+            const qRef = query(
+              cRef,
+              where("tableId", "==", tableCode),
+              where("status", "==", "open")
+            );
             const snap = await getDocs(qRef);
+
             for (const docSnap of snap.docs) {
               const ref = doc(db, "orders", docSnap.id);
               await updateDoc(ref, { status: "closed" });
             }
             alert(`Masa ${tableCode} a fost închisă!`);
 
-            // Odată închisă, golește orders și openTables / reîmprospătează
+            // Golește
             this.currentTableCode = null;
             this.orders = [];
-            this.fetchOpenTables();
+            this.fetchOpenTables(); // reîncărcăm lista meselor open
           } catch (e) {
             console.error("Eroare la finalizare masă:", e);
+            alert("Eroare la finalizarea mesei!");
           }
         }
       },
       mounted() {
-        // optional, putem afișa direct openTables la încărcare
+        // opțional, încărcăm direct openTables
         this.fetchOpenTables();
       }
     });
 
-    vueApp.mount('#app');
+    waiterApp.mount('#app');
   </script>
 </body>
 </html>
