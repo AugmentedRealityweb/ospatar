@@ -10,7 +10,7 @@
 
   <style>
     body {
-      background-color: #111827;
+      background-color: #111827; /* fundal închis */
       color: #fff;
       font-family: Arial, sans-serif;
       margin: 0; 
@@ -55,13 +55,18 @@
     .table-bubble:hover {
       transform: scale(1.05);
     }
-    /* Boxul cu comenzi */
+    /* Fără sesiune în bulă → ascundem direct sessionCode */
     .order-box {
       border: 1px solid #e78c00;
       padding: 0.5rem;
       margin-bottom: 1rem;
       border-radius: 6px;
       background: #1f2937;
+    }
+    .client-title {
+      /* Client #1, #2 => portocaliu */
+      color: #f49032;
+      font-weight: bold;
     }
   </style>
 </head>
@@ -84,12 +89,11 @@
           class="table-bubble"
           @click="bubbleClick(tbl.tableId, tbl.sessionCode)"
         >
-          <div class="font-bold text-sm">
+          <!-- Afișăm doar Masa numărul 1, Masa numărul 50 etc. -->
+          <div class="text-sm font-bold">
             {{ tbl.tableId }}
           </div>
-          <div class="text-xs text-gray-400">
-            {{ tbl.sessionCode }}
-          </div>
+          <!-- NU mai afișăm codul sesiunii aici -->
         </div>
       </div>
       <p class="text-sm text-gray-500 mt-2 text-center">
@@ -101,14 +105,14 @@
 
     <!-- Introducere manuala a tableId (opțional) -->
     <div class="mb-4">
-      <label class="block mb-2 font-semibold">Caută o masă (ex: Masa16):</label>
+      <label class="block mb-2 font-semibold">Caută o masă (ex: 16):</label>
       <input
-        v-model="manualTableId"
+        v-model="manualTableNumber"
         type="text"
-        placeholder="Masa16"
+        placeholder="16"
         class="px-2 py-1 rounded text-black border border-gray-300 focus:outline-none"
       />
-      <button class="btn ml-2" @click="findSession(manualTableId)">Caută</button>
+      <button class="btn ml-2" @click="findSession(manualTableNumber)">Caută</button>
     </div>
 
     <!-- Afișăm comenzile mesei selectate -->
@@ -133,9 +137,8 @@
           class="mb-3"
         >
           <!-- Afișăm Client #1, #2... -->
-          <div class="font-bold">
-            Client #{{ cIdx + 1 }}
-          </div>
+          <div class="client-title">Client #{{ cIdx + 1 }}</div>
+
           <!-- Fiecare "ord" e un document, Comanda #1, #2... -->
           <div
             v-for="(ord, oIdx) in clientData.orders"
@@ -183,14 +186,14 @@
 
     /* Configurarea Firebase (înlocuiește cu datele tale) */
     const firebaseConfig = {
-  apiKey: "AIzaSyBahkhy2GgUW2wM5dxghoVt2bv0-6ZyWqQ",
-  authDomain: "restaurantapp-d0256.firebaseapp.com",
-  projectId: "restaurantapp-d0256",
-  storageBucket: "restaurantapp-d0256.firebasestorage.app",
-  messagingSenderId: "275208346650",
-  appId: "1:275208346650:web:f262b8ec49242d4b9945a3",
-  measurementId: "G-F44TB27G17"
-};
+      apiKey: "xxx",
+      authDomain: "xxx.firebaseapp.com",
+      projectId: "xxx",
+      storageBucket: "xxx.appspot.com",
+      messagingSenderId: "xxx",
+      appId: "xxx",
+      measurementId: "xxx"
+    };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
@@ -198,13 +201,12 @@
     const waiterApp = createApp({
       data() {
         return {
-          openTables: [],         // ex. [{tableId:"Masa16", sessionCode:"X7VH5"}, ...]
-          manualTableId: "",      // Căutare manuală
-          currentTableId: "",     // Masa curentă
+          openTables: [],         // ex. [{tableId:"Masa numărul 16", sessionCode:"X7VH5"}, ...]
+          manualTableNumber: "",  // Căutare manuală (ex. "16")
+          currentTableId: "",     // Masa curentă (ex. "Masa numărul 16")
           currentSessionCode: "", // Codul sesiunii curente
           orders: [],             // Comenzi "open" ale mesei curente
           sessionCodeCache: new Map(), 
-            // ex. {"Masa numărul 1": "XYZ12"} - reținem codul introdus deja
         };
       },
       computed: {
@@ -220,8 +222,7 @@
           }
           return sum.toFixed(2);
         },
-        // Returnăm o listă de obiecte: [ { clientId: 20136, orders: [comanda1, comanda2] }, {...} ]
-        // Dar la afișare vom pune "Client #1, #2..."
+        // Grupăm comenzile după clientNumber
         clientsList() {
           const byClient = {};
           // ord = { clientNumber, items:[], total, ... }
@@ -232,7 +233,7 @@
             }
             byClient[cNum].push(ord);
           }
-          // Transform în array de { clientId, orders }
+          // Transformăm în array de { clientId, orders }
           const result = [];
           for (const cNum in byClient) {
             result.push({ 
@@ -255,7 +256,7 @@
             snap.forEach(docSnap => {
               const data = docSnap.data();
               this.openTables.push({
-                tableId: docSnap.id,
+                tableId: docSnap.id,       // ex. "Masa numărul 16"
                 sessionCode: data.sessionCode
               });
             });
@@ -265,19 +266,21 @@
           }
         },
 
-        // 2) Bula click -> cere codul doar dacă nu-l avem deja
+        // 2) Bula click -> cere codul doar dacă nu-l avem deja în cache
         async bubbleClick(tableId, sessionCode) {
           // Verificăm dacă avem deja în cache
           const cached = this.sessionCodeCache.get(tableId);
-          if (cached === sessionCode) {
-            // Deja știm codul, direct încărcăm
+          if (cached && cached.toUpperCase() === sessionCode.toUpperCase()) {
+            // Deja știm codul (ignorăm case)
             this.currentTableId = tableId;
             this.currentSessionCode = sessionCode;
             await this.loadOrdersBySession(sessionCode);
           } else {
             // Cerem cod nou
             const code = prompt(`Introduceți codul sesiunii pentru ${tableId}:`);
-            if (!code || code.trim() !== sessionCode) {
+            if (!code) return;
+            // Ignorăm case
+            if (code.trim().toUpperCase() !== sessionCode.toUpperCase()) {
               alert("Cod de sesiune incorect!");
               return;
             }
@@ -289,16 +292,17 @@
           }
         },
 
-        // 3) Găsește direct un document "sessions/tableId" (introducem tableId manual)
-        async findSession(tableId) {
-          if (!tableId.trim()) {
-            alert("Te rog introdu un ID masă valid!");
+        // 3) Căutare masă pe bază de număr (ex. "16" => "Masa numărul 16")
+        async findSession(tableNumber) {
+          if (!tableNumber.trim()) {
+            alert("Te rog introdu un număr valid (ex. 16)!");
             return;
           }
-          const docRef = doc(db, "sessions", tableId.trim());
+          const tableId = `Masa numărul ${tableNumber.trim()}`;
+          const docRef = doc(db, "sessions", tableId);
           const snap = await getDoc(docRef);
           if (!snap.exists()) {
-            alert("Nu există nicio sesiune pt această masă!");
+            alert(`Nu există nicio sesiune pt această masă (${tableId})!`);
             this.resetCurrent();
             return;
           }
@@ -309,24 +313,27 @@
             return;
           }
           // Avem tableId + sessionCode
-          // Verificăm dacă-l avem deja în cache
-          const cached = this.sessionCodeCache.get(tableId.trim());
-          if (cached === data.sessionCode) {
+          const existing = this.sessionCodeCache.get(tableId);
+          if (existing && existing.toUpperCase() === data.sessionCode.toUpperCase()) {
             // e deja valid
-            this.currentTableId = tableId.trim();
+            this.currentTableId = tableId;
             this.currentSessionCode = data.sessionCode;
             await this.loadOrdersBySession(data.sessionCode);
           } else {
             // cere cod
-            const code = prompt(`Introduceți codul sesiunii pentru masa ${tableId.trim()}:`);
-            if (!code || code.trim() !== data.sessionCode) {
+            const code = prompt(`Introduceți codul sesiunii pentru masa ${tableNumber.trim()}:`);
+            if (!code) {
+              this.resetCurrent();
+              return;
+            }
+            if (code.trim().toUpperCase() !== data.sessionCode.toUpperCase()) {
               alert("Cod sesiunii incorect!");
               this.resetCurrent();
               return;
             }
             // stocăm în cache
-            this.sessionCodeCache.set(tableId.trim(), data.sessionCode);
-            this.currentTableId = tableId.trim();
+            this.sessionCodeCache.set(tableId, data.sessionCode);
+            this.currentTableId = tableId;
             this.currentSessionCode = data.sessionCode;
             await this.loadOrdersBySession(data.sessionCode);
           }
@@ -352,7 +359,6 @@
 
         // 5) Finalizează masa => setăm "sessions/tableId" => sessionCode=null, status="closed"
         //    plus setăm pt "orders" => status="closed" 
-        //    + aici (!) putem face update de puncte fidelizare
         async finalizeTable(tableId) {
           if (!confirm(`Ești sigur că vrei să finalizezi masa ${tableId}?`)) {
             return;
@@ -375,14 +381,9 @@
                 const ordRef = doc(db, "orders", docSnap.id);
                 await updateDoc(ordRef, { status: "closed" });
 
-                // 5c) AICI, dacă vrei să dai puncte fidelizare clienților, 
-                //     poți face un update la profilul clientului.
-                //     exemplu:
-                //     const data = docSnap.data();
-                //     const clientNum = data.clientNumber;
-                //     const points = data.total * 0.05; 
-                //     -> update la "clients/clientNum" cu new points
-                //     ( trebuie să ai colecția "clients" și un doc pt clientNum)
+                // AICI, dacă vrei să acorzi puncte fidelizare, 
+                // poți face update la doc din "clients" 
+                // pe baza ord.clientNumber, ord.total etc.
               }
             }
 
