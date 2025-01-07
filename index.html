@@ -64,8 +64,24 @@
       color: #111827; /* text mai închis pe gradient */
       border-color: #f49032;
     }
-    /* Pulsare (Tailwind are animate-pulse predefinit). 
-       O putem pune direct cu clasa "animate-pulse". */
+    /* Pulsare si shake (clase custom) */
+    .animate-pulse {
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.03); }
+      100% { transform: scale(1); }
+    }
+    .animate-shake {
+      animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both infinite;
+    }
+    @keyframes shake {
+      10%, 90% { transform: translateX(-1px); }
+      20%, 80% { transform: translateX(2px); }
+      30%, 50%, 70% { transform: translateX(-4px); }
+      40%, 60% { transform: translateX(4px); }
+    }
 
     /* Boxul cu comenzi */
     .order-box {
@@ -95,14 +111,18 @@
       <button class="btn" @click="fetchOpenTables">Vezi Mesele Deschise</button>
     </div>
 
-    <!-- Grid cu max 12 mese (3 pe rând) -->
-    <div v-if="limitedTables.length" class="grid-tables">
+    <!-- Grid cu 12 mese (3 pe rând) -->
+    <div class="grid-tables">
+      <!-- Afișăm toate cele 12 mese din array-ul fix (twelveTables) -->
       <div
-        v-for="(tbl, idx) in limitedTables"
+        v-for="(tbl, idx) in twelveTables"
         :key="tbl.tableId"
         :class="[
           'table-bubble',
-          { 'occupied': tbl.isOccupied, 'animate-pulse': tbl.hasNewOrder }
+          { 
+            'occupied': tbl.isOccupied, 
+            'animate-pulse animate-shake': tbl.hasNewOrder
+          }
         ]"
         @click="bubbleClick(tbl)"
       >
@@ -111,9 +131,6 @@
         </div>
       </div>
     </div>
-    <p v-else class="text-center text-gray-400">
-      Nu există mese active sau nu ai încărcat datele.
-    </p>
 
     <hr class="my-4 border-gray-700"/>
 
@@ -193,14 +210,14 @@
 
     /* Configurarea Firebase (înlocuiește cu datele tale) */
     const firebaseConfig = {
-  apiKey: "AIzaSyBahkhy2GgUW2wM5dxghoVt2bv0-6ZyWqQ",
-  authDomain: "restaurantapp-d0256.firebaseapp.com",
-  projectId: "restaurantapp-d0256",
-  storageBucket: "restaurantapp-d0256.firebasestorage.app",
-  messagingSenderId: "275208346650",
-  appId: "1:275208346650:web:f262b8ec49242d4b9945a3",
-  measurementId: "G-F44TB27G17"
-};
+      apiKey: "AIzaSyBahkhy2GgUW2wM5dxghoVt2bv0-6ZyWq",
+      authDomain: "restaurantapp-d0256.firebaseapp.com",
+      projectId: "restaurantapp-d0256",
+      storageBucket: "restaurantapp-d0256.firebasestorage.app",
+      messagingSenderId: "275208346650",
+      appId: "1:275208346650:web:f262b8ec49242d4b9945a3",
+      measurementId: "G-F44TB27G17"
+    };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
@@ -208,22 +225,28 @@
     const waiterApp = createApp({
       data() {
         return {
-          allTables: [],          // toate mesele active
+          // Avem un array de 12 mese default ("Masa numărul 1" până la 12)
+          // isOccupied, hasNewOrder, sessionCode etc. sunt false/"" la început.
+          twelveTables: Array.from({ length: 12 }, (_, i) => ({
+            tableId: `Masa numărul ${i + 1}`,
+            isOccupied: false,
+            hasNewOrder: false,
+            sessionCode: ""
+          })),
+
           manualTableNumber: "",  // ex. "16"
           currentTableId: "",
           currentSessionCode: "",
           orders: [],
-          sessionCodeCache: new Map(), 
           newOrderHighlight: false, // flag pt highlight 2 secunde
           inactivityTimer: null,
           lastActivityTime: null,
+
+          // Map stocat în localStorage
+          sessionCodeCache: new Map()
         };
       },
       computed: {
-        // Afișăm doar primele 12 mese
-        limitedTables() {
-          return this.allTables.slice(0, 12);
-        },
         // Grupăm comenzile după clientNumber
         clientsList() {
           const byClient = {};
@@ -260,21 +283,30 @@
             const qRef = query(cRef, where("status", "==", "active"));
             const snap = await getDocs(qRef);
 
-            this.allTables = [];
+            // Mai întâi resetăm toate mesele la "goale"
+            this.twelveTables.forEach(t => {
+              t.isOccupied = false;
+              t.hasNewOrder = false;
+              // nu ștergem sessionCode => îl păstrăm pentru cele la care e deja setat (dacă ospătarul a introdus codul).
+            });
+
+            // Pentru fiecare masă din sessions -> actualizăm starea mesei în array-ul our local
             snap.forEach(docSnap => {
               const data = docSnap.data();
-              // Aici decizi cum marchezi "occupied" vs "hasNewOrder"
-              // Ex: let isOccupied = data.occupied === true; (sau alt criteriu)
-              // hasNewOrder = data.hasNewOrder === true;
-              // De test: 
-              let isOccupied = Math.random() > 0.3;   // ~70% ocupate
-              let hasNewOrder = Math.random() > 0.7;  // ~30% pulse
-              this.allTables.push({
-                tableId: docSnap.id, // "Masa numărul X"
-                sessionCode: data.sessionCode,
-                isOccupied,
-                hasNewOrder
-              });
+              const tableId = docSnap.id; // "Masa numărul X"
+              const index = this.twelveTables.findIndex(t => t.tableId === tableId);
+              if (index !== -1) {
+                // Să zicem un criteriu simplu: 
+                // - isOccupied = true dacă e "active"
+                // - hasNewOrder random (sau un câmp real din Firestore)
+                this.twelveTables[index].isOccupied = true;
+                // Exemplu cu random la "hasNewOrder" (în realitate s-ar citi un câmp real)
+                this.twelveTables[index].hasNewOrder = Math.random() > 0.7;
+                // Păstrăm sessionCode dacă există în doc, doar dacă n-aveam deja un altul (introduc de la ospătar)
+                if (!this.twelveTables[index].sessionCode) {
+                  this.twelveTables[index].sessionCode = data.sessionCode || "";
+                }
+              }
             });
           } catch (e) {
             console.error("Eroare la fetchOpenTables:", e);
@@ -285,10 +317,17 @@
         // 2) Când dai click pe bulă
         async bubbleClick(tbl) {
           this.resetActivityTimer();
-          // Verificăm if are deja codul
-          const cached = this.sessionCodeCache.get(tbl.tableId);
-          if (cached && cached.toUpperCase() === tbl.sessionCode.toUpperCase()) {
-            // direct încărcăm
+
+          // Dacă masa e neocupată, nu facem nimic
+          if (!tbl.isOccupied) {
+            alert("Această masă este goală (nu are sesiune activă)!");
+            return;
+          }
+
+          // Căutăm în localStorage (sessionCodeCache) codul pentru acest tableId
+          const storedCode = this.sessionCodeCache.get(tbl.tableId);
+          // Dacă e același cu ce avem și e valid, sărim direct la load
+          if (storedCode && storedCode.toUpperCase() === tbl.sessionCode.toUpperCase()) {
             this.currentTableId = tbl.tableId;
             this.currentSessionCode = tbl.sessionCode;
             await this.loadOrdersBySession(tbl.sessionCode);
@@ -301,10 +340,12 @@
               return;
             }
             // e bun
-            this.sessionCodeCache.set(tbl.tableId, tbl.sessionCode);
+            this.updateSessionCache(tbl.tableId, code.trim());
+            // Actualizăm și pe masă
+            tbl.sessionCode = code.trim();
             this.currentTableId = tbl.tableId;
-            this.currentSessionCode = tbl.sessionCode;
-            await this.loadOrdersBySession(tbl.sessionCode);
+            this.currentSessionCode = code.trim();
+            await this.loadOrdersBySession(code.trim());
           }
         },
 
@@ -329,8 +370,11 @@
             this.resetCurrent();
             return;
           }
-          const existing = this.sessionCodeCache.get(tableId);
-          if (existing && existing.toUpperCase() === data.sessionCode.toUpperCase()) {
+
+          // Verificăm dacă avem deja salvat codul în localStorage
+          const storedCode = this.sessionCodeCache.get(tableId);
+          if (storedCode && storedCode.toUpperCase() === data.sessionCode.toUpperCase()) {
+            // direct încărcăm
             this.currentTableId = tableId;
             this.currentSessionCode = data.sessionCode;
             await this.loadOrdersBySession(data.sessionCode);
@@ -347,10 +391,10 @@
               return;
             }
             // stocăm
-            this.sessionCodeCache.set(tableId, data.sessionCode);
+            this.updateSessionCache(tableId, code.trim());
             this.currentTableId = tableId;
-            this.currentSessionCode = data.sessionCode;
-            await this.loadOrdersBySession(data.sessionCode);
+            this.currentSessionCode = code.trim();
+            await this.loadOrdersBySession(code.trim());
           }
         },
 
@@ -363,15 +407,11 @@
             const qRef = query(cRef, where("sessionCode", "==", sCode), where("status", "==", "open"));
             const snap = await getDocs(qRef);
 
-            // Ex: Poți marca ultima comandă drept "isNew = true" 
-            // sau itemele adăugate recent etc.
-            // Mai jos un exemplu banal: toate comenzile devin "isNew" 
-            // (pentru a demonstra highlight).
             let i = 0;
             snap.forEach(docSnap => {
               const data = docSnap.data();
-              // Mark una la întâmplare isNew (ex. primele 1-2 comenzi)
-              const isNew = i < 2; 
+              // Mark una la întâmplare ca "isNew", exemplu
+              const isNew = (i < 2);
               i++;
               data.isNew = isNew;
               this.orders.push(data);
@@ -381,7 +421,7 @@
             alert("Eroare la încărcarea comenzilor!");
           }
 
-          // Activează highlight 2 secunde
+          // Activează highlight 2 secunde (dacă există comenzi 'isNew')
           if (this.orders.some(o => o.isNew)) {
             this.newOrderHighlight = true;
             setTimeout(() => {
@@ -411,12 +451,27 @@
               }
             }
             alert(`Masa ${tableId} a fost închisă!`);
+
+            // Ștergem din localStorage
+            this.sessionCodeCache.delete(tableId);
+            localStorage.setItem('sessionCodeCache', JSON.stringify(Array.from(this.sessionCodeCache.entries())));
+
             this.resetCurrent();
             this.fetchOpenTables();
           } catch (e) {
             console.error("Eroare la finalizeTable:", e);
             alert("Eroare la finalizarea mesei!");
           }
+        },
+
+        // Actualizăm localStorage și Map-ul local
+        updateSessionCache(tableId, code) {
+          this.sessionCodeCache.set(tableId, code);
+          // Salvăm în localStorage sub formă de array
+          localStorage.setItem(
+            'sessionCodeCache',
+            JSON.stringify(Array.from(this.sessionCodeCache.entries()))
+          );
         },
 
         // Reset stări
@@ -439,20 +494,36 @@
             // Nimeni nu a mișcat 10 sec, auto refresh
             location.reload();
           }
+        },
+
+        // Reîncarcă cache-ul codurilor de sesiune din localStorage
+        loadSessionCodeCache() {
+          const saved = localStorage.getItem('sessionCodeCache');
+          if (saved) {
+            try {
+              const arr = JSON.parse(saved); // array de [ [key, val], ... ]
+              this.sessionCodeCache = new Map(arr);
+            } catch (e) {
+              console.warn("Nu s-a putut parsa sessionCodeCache din localStorage.", e);
+            }
+          }
         }
       },
       mounted() {
+        // 1. Reîncarc codurile salvate
+        this.loadSessionCodeCache();
+        // 2. Fetch mese active
         this.fetchOpenTables();
 
-        // Pornim un interval care verifică inactivitatea la fiecare 1s
+        // 3. Interval care verifică inactivitatea la fiecare 1s
         setInterval(this.checkInactivity, 1000);
 
-        // Orice eveniment de mouse/touch/cheie -> reset timer
+        // 4. Orice eveniment de mouse/touch/cheie -> reset timer
         window.addEventListener("mousemove", this.resetActivityTimer);
         window.addEventListener("keydown", this.resetActivityTimer);
         window.addEventListener("touchstart", this.resetActivityTimer);
 
-        // Setăm initial lastActivityTime
+        // 5. Inițializare timp
         this.resetActivityTimer();
       }
     });
