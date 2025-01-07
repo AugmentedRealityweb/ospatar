@@ -4,7 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Ospătar - Gestionare Mese</title>
+
+  <!-- Tailwind CSS (CDN) -->
   <script src="https://cdn.tailwindcss.com"></script>
+
   <style>
     body {
       background-color: #111827;
@@ -25,49 +28,81 @@
     .btn:hover {
       background-color: #d35400;
     }
-    .table-box {
+    .grid-tables {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1rem;
+    }
+    .table-card {
       border: 1px solid #f49032;
-      margin-bottom: 1rem;
       padding: 1rem;
       border-radius: 6px;
+      background: #1f2937; /* un gri închis diferit de fundal */
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .table-card h3 {
+      font-size: 1.1rem;
+      font-weight: bold;
+      margin-bottom: 0.5rem;
+    }
+    .input-field {
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #f49032;
+      color: #000; /* text negru */
+      outline: none;
+      width: 200px;
     }
     .order-box {
       border: 1px solid #e78c00;
       padding: 0.5rem;
       margin-bottom: 1rem;
       border-radius: 6px;
+      background: #1f2937;
     }
     .order-item {
       margin-left: 1rem;
+    }
+    .category-block {
+      border-left: 3px solid #f49032;
+      padding-left: 0.5rem;
+      margin: 0.5rem 0;
     }
   </style>
 </head>
 <body>
   <h1 class="text-2xl font-bold mb-4 text-center">Aplicație Ospătar - Gestionare Mese</h1>
 
-  <div id="app" class="max-w-3xl mx-auto">
+  <div id="app" class="max-w-4xl mx-auto">
     <!-- Buton: Vezi Mesele Deschise (sessions cu status="active") -->
-    <div class="mb-4">
+    <div class="mb-6 text-center">
       <button class="btn" @click="fetchOpenTables">Vezi Mesele Deschise</button>
     </div>
 
-    <!-- Lista meselor deschise -->
-    <div v-if="openTables.length > 0">
-      <h2 class="text-xl font-bold mb-2">Mese Deschise:</h2>
-      <div
-        v-for="(tbl, idx) in openTables"
-        :key="tbl.tableId"
-        class="table-box"
-      >
-        <div class="flex justify-between items-center">
+    <!-- Grid cu mesele deschise (max 30) -->
+    <div v-if="openTables.length > 0" class="mb-8">
+      <h2 class="text-xl font-bold mb-3">Mese Deschise (max 30 afișate):</h2>
+      <div class="grid-tables">
+        <div
+          v-for="(tbl, idx) in openTablesSliced"
+          :key="tbl.tableId"
+          class="table-card"
+        >
           <div>
-            <strong>Masa: {{ tbl.tableId }}</strong> 
-            <br/>
-            <em>(Cod sesiune: {{ tbl.sessionCode }})</em>
+            <h3>{{ tbl.tableId }}</h3>
+            <p class="text-sm text-gray-400 italic">Cod sesiune: {{ tbl.sessionCode }}</p>
           </div>
-          <button class="btn" @click="showOrders(tbl.tableId, tbl.sessionCode)">
-            Vezi Comenzi
-          </button>
+          <div class="mt-3 text-right">
+            <!-- Introducem un cod sesiune (confirmare) -->
+            <button
+              class="btn"
+              @click="promptSessionCode(tbl.tableId, tbl.sessionCode)"
+            >
+              Vezi Comenzi
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -76,51 +111,77 @@
 
     <!-- Introducere manuala a tableId (dacă vrei să cauți direct masa) -->
     <div class="mb-4">
-      <label class="block mb-2">Caută o masă (ex: Masa16):</label>
+      <label class="block mb-2 font-semibold">Caută o masă (ex: Masa16):</label>
       <input
         v-model="manualTableId"
         type="text"
         placeholder="Masa16"
-        class="px-4 py-2 rounded text-black"
+        class="input-field"
       />
       <button class="btn ml-2" @click="findSession(manualTableId)">Caută</button>
     </div>
 
     <!-- Afișăm comenzile mesei selectate -->
-    <div v-if="currentTableId" class="table-box">
+    <div v-if="currentTableId" class="order-box">
       <h2 class="text-xl font-bold mb-2">
-        Masă: {{ currentTableId }}
+        {{ currentTableId }}
       </h2>
-      <p v-if="currentSessionCode">
+      <p v-if="currentSessionCode" class="text-gray-300 mb-2">
         Cod Sesiune: <strong>{{ currentSessionCode }}</strong>
       </p>
+
+      <!-- Daca nu avem comenzi -->
       <div v-if="orders.length === 0" class="italic mt-2">
-        Nicio comandă găsită (status=open) pentru această masă.
+        Nicio comandă deschisă găsită pentru această masă.
       </div>
+
+      <!-- Avem comenzi -> le afișăm GRUPATE pe { clientNumber -> categorii } -->
       <div v-else>
         <div
-          v-for="(ord, idx) in orders"
-          :key="ord.docId"
-          class="order-box"
+          v-for="(clientBlock, cIdx) in groupedOrders"
+          :key="cIdx"
+          class="mb-4"
         >
-          <div class="font-bold">
-            Comanda #{{ ord.docId }} (Client #{{ ord.clientNumber }})
-          </div>
-          <ul class="order-item">
-            <li
-              v-for="(item, iidx) in ord.items"
-              :key="iidx"
+          <!-- Afișăm doar "Client #xxxx" -->
+          <div class="font-bold text-lg mb-1">Client #{{ clientBlock.clientNumber }}</div>
+
+          <!-- Fiecare "comandă" este de fapt un "lot" din Firestore, dar noi doar punem index -->
+          <div 
+            v-for="(cmd, cmdIdx) in clientBlock.commands"
+            :key="cmdIdx"
+            class="mb-3"
+          >
+            <!-- Comanda #1, #2 etc. -->
+            <div class="text-sm text-gray-400 mb-1">Comanda #{{ cmdIdx + 1 }}</div>
+
+            <!-- Afișăm pe categorii -->
+            <div 
+              v-for="(itemsArray, categoryName) in cmd.byCategory"
+              :key="categoryName"
+              class="category-block"
             >
-              {{ item.name }} x {{ item.quantity }} – {{ (item.price*item.quantity).toFixed(2) }} Lei
-            </li>
-          </ul>
-          <div class="font-bold mt-1 text-[#f49032]">
-            Subtotal: {{ ord.total.toFixed(2) }} Lei
+              <div class="font-semibold text-[#f49032]">
+                {{ renameCategory(categoryName) }}
+              </div>
+              <ul class="ml-4 list-disc">
+                <li
+                  v-for="(item, iidx) in itemsArray"
+                  :key="iidx"
+                  class="text-gray-200"
+                >
+                  {{ item.name }} x {{ item.quantity }} 
+                  – {{ (item.price * item.quantity).toFixed(2) }} Lei
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
-        <div class="mt-2 font-bold">
+
+        <!-- Total final mesei -->
+        <div class="mt-2 font-bold text-[#f49032] text-lg">
           Total Masă: {{ totalTable }} Lei
         </div>
+
         <!-- Buton Finalizează Masa -->
         <button class="btn mt-4" @click="finalizeTable(currentTableId)">Finalizează Masa</button>
       </div>
@@ -164,19 +225,74 @@
           manualTableId: "",      // Căutare manuală
           currentTableId: "",     // Masa curentă
           currentSessionCode: "", // Codul sesiunii curente
-          orders: [],             // Comenzi open ale mesei curente
+          orders: [],             // Comenzi "open" ale mesei curente
+          sessionCodeInput: "",   // Codul introduc de ospătar la prompt
         };
       },
       computed: {
+        // Afișăm doar primele 30
+        openTablesSliced() {
+          return this.openTables.slice(0, 30);
+        },
+        // Totalul mesei (suma totalurilor fiecărei comenzi)
         totalTable() {
           let sum = 0;
           for (const ord of this.orders) {
             sum += ord.total;
           }
           return sum.toFixed(2);
+        },
+        // Grupăm pe client -> comenzi -> categorii
+        groupedOrders() {
+          // 1) Grupăm comenzile după clientNumber
+          const byClient = {};
+          for (const ord of this.orders) {
+            const cNum = ord.clientNumber;
+            if (!byClient[cNum]) {
+              byClient[cNum] = [];
+            }
+            // stocăm ord
+            byClient[cNum].push(ord);
+          }
+          // 2) Pentru fiecare client, avem un array de comenzi
+          //    fiecare "ord" are items -> group by category
+          const result = [];
+          for (const cNum in byClient) {
+            // commands e un array cu date transformate
+            const commands = byClient[cNum].map((o) => {
+              // O structură { byCategory: { 'main': [..], 'drinks': [..], ... } }
+              const catObj = {};
+              for (const it of o.items) {
+                const cat = it.category || "Fără categorie";
+                if (!catObj[cat]) {
+                  catObj[cat] = [];
+                }
+                catObj[cat].push(it);
+              }
+              return { byCategory: catObj };
+            });
+            result.push({
+              clientNumber: cNum,
+              commands: commands
+            });
+          }
+          return result;
         }
       },
       methods: {
+        // Dicționar categorii mai prietenos
+        renameCategory(cat) {
+          const dict = {
+            brunch: 'Mic Dejun',
+            soups: 'Supe',
+            pasta: 'Paste',
+            main: 'Fel Principal',
+            desserts: 'Deserturi',
+            drinks: 'Băuturi',
+          };
+          return dict[cat] || cat;
+        },
+
         // 1) Preia mesele deschise (sessions cu status="active")
         async fetchOpenTables() {
           try {
@@ -198,7 +314,7 @@
           }
         },
 
-        // 2) Găsește direct un document "sessions/tableId"
+        // 2) Găsește direct un document "sessions/tableId" (introducem tableId)
         async findSession(tableId) {
           if (!tableId.trim()) {
             alert("Te rog introdu un ID masă valid!");
@@ -208,31 +324,40 @@
           const snap = await getDoc(docRef);
           if (!snap.exists()) {
             alert("Nu există nicio sesiune pt această masă!");
-            this.currentTableId = "";
-            this.currentSessionCode = "";
-            this.orders = [];
+            this.resetCurrent();
             return;
           }
           const data = snap.data();
           if (data.status === "closed" || !data.sessionCode) {
             alert("Sesiunea pentru această masă este deja închisă sau nu există!");
-            this.currentTableId = "";
-            this.currentSessionCode = "";
-            this.orders = [];
+            this.resetCurrent();
             return;
           }
           this.currentTableId = tableId.trim();
+          // obligăm ospătarul să introducă manual codul
+          const code = prompt(`Introduceți codul sesiunii pentru masa ${tableId}:`);
+          if (!code || code.trim() !== data.sessionCode) {
+            alert("Codul sesiunii e invalid!");
+            this.resetCurrent();
+            return;
+          }
           this.currentSessionCode = data.sessionCode;
-          // Preluăm comenzile open
+
+          // Încarcă comenzile
           await this.loadOrdersBySession(this.currentSessionCode);
         },
 
-        // 3) Afișează comenzile când dai "Vezi Comenzi"
-        async showOrders(tableId, sessionCode) {
+        // 3) Prompt pentru codul sesiunii
+        promptSessionCode(tableId, sessionCode) {
+          const code = prompt(`Introduceți codul sesiunii pentru ${tableId}:`);
+          if (!code || code.trim() !== sessionCode) {
+            alert("Cod de sesiune incorect!");
+            return;
+          }
+          // Ok, codul e bun
           this.currentTableId = tableId;
           this.currentSessionCode = sessionCode;
-          // Încărcăm comenzile
-          await this.loadOrdersBySession(sessionCode);
+          this.loadOrdersBySession(sessionCode);
         },
 
         // 4) Încarcă comenzile (orders) pt un sessionCode, status="open"
@@ -245,7 +370,10 @@
 
             snap.forEach(docSnap => {
               const data = docSnap.data();
-              data.docId = docSnap.id;
+              // Adăugăm un câmp "category" la fiecare item, dacă nu are
+              // (depinde dacă produsul tău stoca deja category)
+              // exemplu: data.items = data.items.map(it=>({...it, category: it.category||"main"}))
+              
               this.orders.push(data);
             });
           } catch (e) {
@@ -270,7 +398,7 @@
             if (!sCode) {
               alert("Nu există un sessionCode pt masa curentă!");
             } else {
-              // Toate comenzile open cu sessionCode => setăm status="closed"
+              // Toate comenzile "open" cu sessionCode => setăm status="closed"
               const cRef = collection(db, "orders");
               const qRef = query(cRef, where("sessionCode", "==", sCode), where("status", "==", "open"));
               const snap = await getDocs(qRef);
@@ -281,19 +409,23 @@
             }
             alert(`Masa ${tableId} a fost închisă!`);
             // Resetare
-            this.currentTableId = "";
-            this.currentSessionCode = "";
-            this.orders = [];
+            this.resetCurrent();
             // Re-afișăm openTables
             this.fetchOpenTables();
           } catch (e) {
             console.error("Eroare la finalizeTable:", e);
             alert("Eroare la finalizarea mesei!");
           }
+        },
+
+        resetCurrent() {
+          this.currentTableId = "";
+          this.currentSessionCode = "";
+          this.orders = [];
         }
       },
       mounted() {
-        // Opțional: încărcăm direct openTables
+        // La încărcare, preluăm direct mesele open
         this.fetchOpenTables();
       }
     });
