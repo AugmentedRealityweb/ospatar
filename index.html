@@ -30,7 +30,7 @@
       background-color: #d35400;
     }
 
-    /* Grid: 12 mese, 3 pe rând */
+    /* Grid pentru 12 mese (3 coloane) */
     .grid-tables {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -135,19 +135,20 @@
           :key="cIdx"
           class="mb-3"
         >
-          <div class="client-title">Client #{{ cIdx + 1 }}</div>
+          <div class="client-title">
+            Client #{{ cIdx + 1 }}
+          </div>
 
           <div
             v-for="(ord, oIdx) in clientData.orders"
             :key="ord.orderId"
             class="ml-4 mt-1"
           >
+            <!-- Eliminăm docId, status, isNew din afișare -->
             <div class="text-sm text-gray-400 mb-1">
-              <strong>Comanda #{{ oIdx + 1 }} ({{ ord.orderId }})</strong>
-              – status: <strong>{{ ord.orderStatus }}</strong>
-              – isNew: <strong>{{ ord.isNew }}</strong>
+              <strong>Comanda #{{ oIdx + 1 }}</strong>
 
-              <!-- Butonul apare DOAR dacă e pending -->
+              <!-- Butonul apare doar dacă e "pending" -->
               <button
                 class="btn ml-2"
                 v-if="ord.orderStatus === 'pending'"
@@ -156,6 +157,7 @@
                 Comandă Plasată
               </button>
             </div>
+
             <ul
               :class="[
                 'ml-2',
@@ -239,13 +241,13 @@
         };
       },
       computed: {
-        // Buton toggle
+        // Label buton toggle
         toggleButtonLabel() {
           return this.showOccupiedOnly
             ? "Vezi Toate Mesele"
             : "Vezi Mesele Deschise";
         },
-        // Care mese să afișăm
+        // Mese afișate
         displayedTables() {
           if (this.showOccupiedOnly) {
             return this.twelveTables.filter(t => t.isOccupied);
@@ -268,7 +270,7 @@
           }
           return result;
         },
-        // Total masa
+        // Total pe masă
         totalTable() {
           let sum = 0;
           for (const ord of this.orders) {
@@ -282,7 +284,7 @@
           this.showOccupiedOnly = !this.showOccupiedOnly;
           this.fetchOpenTables();
         },
-        // Încarcă "sessions" active
+        // Încarcă "sessions" cu status "active"
         async fetchOpenTables() {
           this.resetActivityTimer();
           try {
@@ -290,22 +292,20 @@
             const qRef = query(cRef, where("status", "==", "active"));
             const snap = await getDocs(qRef);
 
-            // Reset la mese
+            // Reset la mese (toate devin neocupate)
             this.twelveTables.forEach(t => {
               t.isOccupied = false;
               t.hasNewOrder = false;
             });
 
-            // Marcare mese active
+            // Marchează mesele active
             for (const docSnap of snap.docs) {
               const data = docSnap.data();
               const tableId = docSnap.id;
               const idx = this.twelveTables.findIndex(t => t.tableId === tableId);
               if (idx !== -1) {
                 this.twelveTables[idx].isOccupied = true;
-                if (!this.twelveTables[idx].sessionCode) {
-                  this.twelveTables[idx].sessionCode = data.sessionCode || "";
-                }
+                this.twelveTables[idx].sessionCode = data.sessionCode || "";
 
                 // Verificăm comenzi noi
                 if (data.sessionCode) {
@@ -387,13 +387,11 @@
                 data.isNew = false;
               }
 
-              // NOTĂ: Am eliminat logica automată care punea comanda "pending" -> "placed".
-
               data.orderId = ordId;
               this.orders.push(data);
             }
 
-            // Salvăm ID-urile văzute
+            // Salvăm ID-urile comenzilor văzute
             localStorage.setItem("ordersSeen", JSON.stringify(Array.from(this.ordersSeen)));
 
             if (foundNew) {
@@ -407,12 +405,12 @@
             alert("Nu s-au putut încărca comenzile!");
           }
         },
-        // Metoda pentru a plasa manual comanda ("pending" -> "placed")
+        // Metodă pentru a seta manual comanda ("pending" -> "placed")
         async placeOrder(orderId) {
           this.resetActivityTimer();
           try {
             await updateDoc(doc(db, "orders", orderId), { orderStatus: "placed" });
-            // Actualizăm statusul și în array-ul local
+            // Actualizăm statusul în array-ul local
             const idx = this.orders.findIndex(o => o.orderId === orderId);
             if (idx !== -1) {
               this.orders[idx].orderStatus = "placed";
