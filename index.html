@@ -30,6 +30,7 @@
       background-color: #d35400;
     }
 
+    /* Buton verde (gradient + shadow) */
     .btn-green {
       background: linear-gradient(to right, #2ecc71, #27ae60);
       color: #fff;
@@ -44,6 +45,7 @@
       box-shadow: 0 0 8px #2ecc71, 0 0 20px #27ae60;
     }
 
+    /* Grid Mese */
     .grid-tables {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -102,7 +104,7 @@
       transition: background-color 2s ease;
     }
 
-    /* Stil listă produse meniu */
+    /* Stil listă produse meniu (apar la "Configurează Meniul Zilei") */
     .products-list {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -121,7 +123,7 @@
       background-color: #2d3748;
     }
     .selected {
-      outline: 2px solid #2ecc71;
+      outline: 2px solid #2ecc71; /* evidențiem produsele selectate */
     }
   </style>
 </head>
@@ -144,6 +146,7 @@
     <!-- Secțiunea "Configurare Meniul Zilei" -->
     <div v-if="showDailyMenuConfig" class="border border-yellow-500 p-4 rounded mb-4">
       <h2 class="text-xl font-bold mb-2 text-center">Alege 3 produse</h2>
+      <!-- Afisam produsele aplatizate in allProducts -->
       <div class="products-list">
         <div 
           v-for="(prod, idx) in allProducts" 
@@ -316,6 +319,8 @@
 
           // Meniul zilei
           showDailyMenuConfig: false,
+          
+          /* 1) Aici avem un obiect “products” cu categorii și itemi. */
           products: {
             brunch: [
               {
@@ -667,8 +672,13 @@
                 ingredients: ["Castraveți murați"]
               }
             ]
-          },          // toate produsele disponibile
-          selectedProducts: []      // produsele selectate (max 3)
+          },
+          /* 2) Vom depozita toate produsele “aplatizate” aici, 
+                ca să le afișăm în "Configurează Meniul Zilei". */
+          allProducts: [],
+          
+          /* 3) Produsele selectate de ospătar (exact 3) */
+          selectedProducts: []
         };
       },
       computed: {
@@ -711,6 +721,7 @@
           this.showOccupiedOnly = !this.showOccupiedOnly;
         },
 
+        // Ascultă sesiunile active
         subscribeActiveSessions() {
           const sessionsRef = collection(db, "sessions");
           const q = query(sessionsRef, where("status", "==", "active"));
@@ -730,14 +741,19 @@
                   this.twelveTables[idx].sessionCode = data.sessionCode || "";
                 }
               });
+            },
+            (err) => {
+              console.error("Eroare la onSnapshot sessions:", err);
             }
           );
         },
+
+        // Ascultă comenzile open
         subscribeAllOpenOrders() {
           const ordersRef = collection(db, "orders");
-          const q = query(ordersRef, where("status", "==", "open"));
+          const qO = query(ordersRef, where("status", "==", "open"));
           this.unsubscribeAllOrders = onSnapshot(
-            q,
+            qO,
             (snapshot) => {
               snapshot.docChanges().forEach((change) => {
                 if (change.type === "added") {
@@ -749,9 +765,14 @@
                   }
                 }
               });
+            },
+            (err) => {
+              console.error("Eroare la onSnapshot orders:", err);
             }
           );
         },
+
+        // Ascultă toate mesajele de chat
         subscribeAllChatMessages() {
           const chatRef = collection(db, "chatMessages");
           this.unsubscribeAllChat = onSnapshot(
@@ -762,11 +783,9 @@
                   const data = change.doc.data();
                   if (!this.messagesSeen.has(change.doc.id)) {
                     this.messagesSeen.add(change.doc.id);
-                    localStorage.setItem(
-                      "messagesSeen",
-                      JSON.stringify(Array.from(this.messagesSeen))
-                    );
-                    const tableNumber = data.tableNumber; 
+                    localStorage.setItem("messagesSeen", JSON.stringify(Array.from(this.messagesSeen)));
+                    // vibrație
+                    const tableNumber = data.tableNumber;
                     const tableId = `Masa numărul ${tableNumber}`;
                     const idx = this.twelveTables.findIndex(t => t.tableId === tableId);
                     if (idx !== -1) {
@@ -775,6 +794,9 @@
                   }
                 }
               });
+            },
+            (err) => {
+              console.error("Eroare la onSnapshot chat:", err);
             }
           );
         },
@@ -800,6 +822,7 @@
           }
           tbl.hasNewOrder = false;
         },
+
         openTable(tableId, sessionCode) {
           this.currentTableId = tableId;
           this.currentSessionCode = sessionCode;
@@ -808,197 +831,183 @@
           }
           this.listenOrdersBySession(sessionCode);
         },
+
         listenOrdersBySession(sCode) {
-          const cRef = collection(db, "orders");
-          const qRef = query(cRef, where("sessionCode", "==", sCode), where("status", "==", "open"));
+          const cRef=collection(db,"orders");
+          const qRef=query(cRef,where("sessionCode","==",sCode),where("status","==","open"));
 
-          this.orders = [];
-          this.unsubscribeOrdersForCurrentTable = onSnapshot(
+          this.orders=[];
+          this.unsubscribeOrdersForCurrentTable=onSnapshot(
             qRef,
-            (snapshot) => {
-              const newOrders = [];
-              let foundNew = false;
+            (snapshot)=>{
+              const newOrders=[];
+              let foundNew=false;
 
-              snapshot.forEach(docSnap => {
-                const data = docSnap.data();
-                const ordId = docSnap.id;
-                if (!this.ordersSeen.has(ordId)) {
-                  data.isNew = true;
+              snapshot.forEach(docSnap=>{
+                const data=docSnap.data();
+                const ordId=docSnap.id;
+                if(!this.ordersSeen.has(ordId)){
+                  data.isNew=true;
                   this.ordersSeen.add(ordId);
-                  foundNew = true;
+                  foundNew=true;
                 } else {
-                  data.isNew = false;
+                  data.isNew=false;
                 }
-                data.orderId = ordId;
+                data.orderId=ordId;
                 newOrders.push(data);
               });
 
-              this.orders = newOrders;
-              localStorage.setItem("ordersSeen", JSON.stringify(Array.from(this.ordersSeen)));
+              this.orders=newOrders;
+              localStorage.setItem("ordersSeen",JSON.stringify(Array.from(this.ordersSeen)));
 
-              if (foundNew) {
-                this.newOrderHighlight = true;
-                setTimeout(() => {
-                  this.newOrderHighlight = false;
-                }, 2000);
+              if(foundNew){
+                this.newOrderHighlight=true;
+                setTimeout(()=>{ this.newOrderHighlight=false; },2000);
               }
+            },
+            (err)=>{
+              console.error("Eroare onSnapshot orders by session:",err);
             }
           );
         },
+
         async placeOrder(orderId) {
           try {
-            await updateDoc(doc(db, "orders", orderId), { orderStatus: "placed" });
-          } catch (err) {
-            console.error("Eroare la placeOrder:", err);
+            await updateDoc(doc(db,"orders",orderId),{ orderStatus:"placed" });
+          } catch(err){
+            console.error("Eroare la placeOrder:",err);
             alert("Nu s-a putut schimba statusul comenzii!");
           }
         },
-        async finalizeTable(tableId) {
-          if (!confirm(`Ești sigur că vrei să finalizezi masa ${tableId}?`)) {
-            return;
-          }
-          try {
-            const docRef = doc(db, "sessions", tableId);
-            await updateDoc(docRef, { sessionCode: null, status: "closed" });
 
-            if (this.currentSessionCode) {
-              const cRef = collection(db, "orders");
-              const qRef = query(
-                cRef,
-                where("sessionCode", "==", this.currentSessionCode),
-                where("status", "==", "open")
-              );
-              const snap = await getDocs(qRef);
-              for (const docSnap of snap.docs) {
-                await updateDoc(doc(db, "orders", docSnap.id), { status: "closed" });
+        async finalizeTable(tableId) {
+          if(!confirm(`Ești sigur că vrei să finalizezi masa ${tableId}?`)) return;
+          try {
+            const docRef=doc(db,"sessions",tableId);
+            await updateDoc(docRef,{ sessionCode:null, status:"closed" });
+
+            if(this.currentSessionCode){
+              const cRef=collection(db,"orders");
+              const qRef=query(cRef,where("sessionCode","==",this.currentSessionCode),where("status","==","open"));
+              const snap=await getDocs(qRef);
+              for(const docSnap of snap.docs){
+                await updateDoc(doc(db,"orders",docSnap.id),{ status:"closed" });
               }
             }
 
             alert(`Masa ${tableId} a fost închisă!`);
             this.sessionCodeCache.delete(tableId);
-            localStorage.setItem(
-              "sessionCodeCache",
-              JSON.stringify(Array.from(this.sessionCodeCache.entries()))
-            );
-
+            localStorage.setItem("sessionCodeCache", JSON.stringify(Array.from(this.sessionCodeCache.entries())));
             this.resetCurrent();
-          } catch (e) {
-            console.error("Eroare la finalizeTable:", e);
+          } catch(e){
+            console.error("Eroare la finalizeTable:",e);
             alert("Eroare la finalizarea mesei!");
           }
         },
-        updateSessionCache(tableId, code) {
-          this.sessionCodeCache.set(tableId, code);
-          localStorage.setItem(
-            "sessionCodeCache",
-            JSON.stringify(Array.from(this.sessionCodeCache.entries()))
-          );
+
+        updateSessionCache(tableId, code){
+          this.sessionCodeCache.set(tableId,code);
+          localStorage.setItem("sessionCodeCache",JSON.stringify(Array.from(this.sessionCodeCache.entries())));
         },
-        resetCurrent() {
-          this.currentTableId = "";
-          this.currentSessionCode = "";
-          this.orders = [];
-          this.newOrderHighlight = false;
-          if (this.unsubscribeOrdersForCurrentTable) {
+
+        resetCurrent(){
+          this.currentTableId="";
+          this.currentSessionCode="";
+          this.orders=[];
+          this.newOrderHighlight=false;
+          if(this.unsubscribeOrdersForCurrentTable){
             this.unsubscribeOrdersForCurrentTable();
-            this.unsubscribeOrdersForCurrentTable = null;
+            this.unsubscribeOrdersForCurrentTable=null;
           }
         },
 
-        loadSessionCodeCache() {
-          const saved = localStorage.getItem("sessionCodeCache");
-          if (saved) {
-            try {
-              const arr = JSON.parse(saved);
-              this.sessionCodeCache = new Map(arr);
-            } catch (e) {
-              console.warn("Nu s-a putut parsa sessionCodeCache:", e);
+        loadSessionCodeCache(){
+          const saved=localStorage.getItem("sessionCodeCache");
+          if(saved){
+            try{
+              const arr=JSON.parse(saved);
+              this.sessionCodeCache=new Map(arr);
+            } catch(e){
+              console.warn("Nu s-a putut parsa sessionCodeCache:",e);
             }
           }
         },
-        loadOrdersSeen() {
-          const saved = localStorage.getItem("ordersSeen");
-          if (saved) {
-            try {
-              const arr = JSON.parse(saved);
-              this.ordersSeen = new Set(arr);
-            } catch (e) {
-              console.warn("Nu s-a putut parsa ordersSeen:", e);
+        loadOrdersSeen(){
+          const saved=localStorage.getItem("ordersSeen");
+          if(saved){
+            try{
+              const arr=JSON.parse(saved);
+              this.ordersSeen=new Set(arr);
+            } catch(e){
+              console.warn("Nu s-a putut parsa ordersSeen:",e);
             }
           }
         },
-        loadMessagesSeen() {
-          const saved = localStorage.getItem("messagesSeen");
-          if (saved) {
-            try {
-              const arr = JSON.parse(saved);
-              this.messagesSeen = new Set(arr);
-            } catch (e) {
-              console.warn("Nu s-a putut parsa messagesSeen:", e);
+        loadMessagesSeen(){
+          const saved=localStorage.getItem("messagesSeen");
+          if(saved){
+            try{
+              const arr=JSON.parse(saved);
+              this.messagesSeen=new Set(arr);
+            }catch(e){
+              console.warn("Nu s-a putut parsa messagesSeen:",e);
             }
           }
         },
 
-        // -------------- Meniul Zilei --------------
-        // 1) preluăm toate produsele (din "products" colectia, sau altceva)
-        async loadAllProducts() {
-          try {
-            // presupunem că ai o colecție "products" în Firestore
-            const cRef = collection(db, "products");
-            const snap = await getDocs(cRef);
-            const result = [];
-            snap.forEach((docItem) => {
-              result.push(docItem.data());
-            });
-            this.allProducts = result;
-          } catch (err) {
-            console.error("Eroare la loadAllProducts:", err);
+        /* -------------- Meniul Zilei -------------- */
+        // Aplatizăm produsele din "products" ca să le afișăm în allProducts
+        flattenProducts() {
+          const arr = [];
+          // parcurgem categoriile => punem toate produsele într-un singur array
+          for (const catKey in this.products) {
+            // this.products[catKey] e un array
+            arr.push(...this.products[catKey]);
           }
+          this.allProducts = arr;
         },
         toggleSelectProduct(prod) {
-          // max 3 produse
-          const idx = this.selectedProducts.indexOf(prod);
-          if (idx >= 0) {
-            // deselectăm
-            this.selectedProducts.splice(idx, 1);
+          const idx=this.selectedProducts.indexOf(prod);
+          if(idx>=0){
+            // deselect
+            this.selectedProducts.splice(idx,1);
           } else {
-            if (this.selectedProducts.length >= 3) {
+            if(this.selectedProducts.length>=3){
               alert("Poți alege exact 3 produse!");
               return;
             }
             this.selectedProducts.push(prod);
           }
         },
-        async saveDailyMenu() {
-          if (this.selectedProducts.length !== 3) {
+        async saveDailyMenu(){
+          if(this.selectedProducts.length!==3){
             alert("Selectează exact 3 produse!");
             return;
           }
-          try {
-            // salvăm doc "dailyMenu" în colecția "specials"
-            await setDoc(doc(db, "specials", "dailyMenu"), {
-              products: this.selectedProducts
+          try{
+            await setDoc(doc(db,"specials","dailyMenu"),{
+              products:this.selectedProducts
             });
-            alert("Meniul Zilei a fost salvat!");
-          } catch (err) {
-            console.error("Eroare la saveDailyMenu:", err);
+            alert("Meniul Zilei a fost salvat cu succes!");
+          }catch(err){
+            console.error("Eroare la saveDailyMenu:",err);
             alert("Nu s-a putut salva Meniul Zilei!");
           }
         }
       },
-      async mounted() {
+      async mounted(){
         // reîncărcăm stocări locale
         this.loadSessionCodeCache();
         this.loadOrdersSeen();
         this.loadMessagesSeen();
 
-        // ascultăm date
+        // ascultăm date (sesiuni, comenzi, chat)
         this.subscribeActiveSessions();
         this.subscribeAllOpenOrders();
         this.subscribeAllChatMessages();
 
-        // încărcăm toate produsele (pt. Meniul Zilei)
-        await this.loadAllProducts();
+        // Aplatizăm produsele
+        this.flattenProducts();
       }
     });
 
