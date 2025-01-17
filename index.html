@@ -120,6 +120,15 @@
     .selected {
       outline: 2px solid #2ecc71; /* evidențiem produsele selectate */
     }
+
+    /* Animație simplă pentru apariția gridului */
+    .category-enter-active, .category-leave-active {
+      transition: all 0.3s ease;
+    }
+    .category-enter, .category-leave-to {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
   </style>
 </head>
 <body>
@@ -142,32 +151,43 @@
     <div v-if="showDailyMenuConfig" class="border border-yellow-500 p-4 rounded mb-4">
       <h2 class="text-xl font-bold mb-2 text-center">Alege 3 produse</h2>
 
-      <!-- Afișăm categoriile și produsele în sub-grile. 
-           Pentru fiecare categorie, un heading + un grid de produse. -->
+      <!-- Afișăm categoriile, iar la click pe heading se face toggle la gridul de produse -->
       <div 
         v-for="(catProds, catKey) in products" 
         :key="catKey"
         class="mb-6"
       >
-        <h3 class="text-lg font-bold text-center mb-2">{{ catKey }}</h3>
-        <!-- Grid pt produsele din categoria respectivă -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          <div
-            v-for="(prod, idx) in catProds"
-            :key="idx"
-            class="prod-card"
-            :class="{ 'selected': selectedProducts.includes(prod) }"
-            @click="toggleSelectProduct(prod)"
+        <!-- Titlul categoriei, click => toggleCategory(catKey) -->
+        <h3 
+          class="text-lg font-bold text-center cursor-pointer mb-2"
+          @click="toggleCategory(catKey)"
+        >
+          {{ catKey }}
+        </h3>
+
+        <!-- Afișăm gridul DOAR dacă openedCategories include catKey -->
+        <transition name="category">
+          <div 
+            v-if="openedCategories.includes(catKey)"
+            class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
           >
-            <img 
-              :src="prod.image" 
-              alt="img" 
-              class="w-full h-32 object-cover mb-2 rounded"
-            />
-            <div class="text-sm font-bold">{{ prod.title }}</div>
-            <div class="text-sm text-gray-300">{{ prod.price }} Lei</div>
+            <div
+              v-for="(prod, idx) in catProds"
+              :key="idx"
+              class="prod-card"
+              :class="{ 'selected': selectedProducts.includes(prod) }"
+              @click="toggleSelectProduct(prod)"
+            >
+              <img 
+                :src="prod.image" 
+                alt="img" 
+                class="w-full h-32 object-cover mb-2 rounded"
+              />
+              <div class="text-sm font-bold">{{ prod.title }}</div>
+              <div class="text-sm text-gray-300">{{ prod.price }} Lei</div>
+            </div>
           </div>
-        </div>
+        </transition>
       </div>
 
       <div class="text-center mt-4">
@@ -325,18 +345,8 @@
 
           // Meniul zilei
           showDailyMenuConfig: false,
-          
-          categories: [
-            { name: "brunch",  image: "https://i.giphy.com/9qZEmFR8fs7CrCgy4T.webp" },
-            { name: "soups",   image: "https://bistropoint.ro/wp-content/uploads/2021/12/Ciorba-de-Burta-380gr.jpg" },
-            { name: "pasta",   image: "https://i.giphy.com/dZRlFW1sbFEpG.webp" },
-            { name: "main",    image: "https://i.giphy.com/NRS40PZGqScW4Tm2F5.webp" },
-            { name: "desserts",image: "https://i.giphy.com/L2mf2cMkd2m7BJCjX7.webp" },
-            { name: "drinks",  image: "https://i.giphy.com/AxVvjTt0Fa1WEHzMM8.webp" },
-            { name: "garnish", image: "https://i.giphy.com/xUPGcjaoWW2tLOAvWo.webp" }
-          ],
 
-         products: {
+          products: {
             brunch: [
               {
                 title: "Toast cu avocado",
@@ -689,8 +699,8 @@
             ]
           },
 
-          // Nu mai aplatizăm produsele, le afișăm direct pe categorii
-          // allProducts: [],  <-- Nu mai folosim
+          // Array în care reținem categoriile „deschise”
+          openedCategories: [],
 
           // Produsele selectate (exact 3)
           selectedProducts: []
@@ -736,17 +746,14 @@
         toggleShow() {
           this.showOccupiedOnly = !this.showOccupiedOnly;
         },
-        // Ascultă sesiunile active
         subscribeActiveSessions() {
           const sessionsRef = collection(db, "sessions");
           const qSessions = query(sessionsRef, where("status", "==", "active"));
           this.unsubscribeAllSessions = onSnapshot(qSessions, (snapshot) => {
-            // Reset la false
             this.twelveTables.forEach((t) => {
               t.isOccupied = false;
               t.sessionCode = "";
             });
-            // Apoi setăm la true cele active
             snapshot.forEach((docSnap) => {
               const data = docSnap.data();
               const tableId = docSnap.id;
@@ -760,7 +767,6 @@
             console.error("Eroare la onSnapshot sessions:", err);
           });
         },
-        // Ascultă comenzile open
         subscribeAllOpenOrders() {
           const ordersRef = collection(db, "orders");
           const qOrders = query(ordersRef, where("status", "==", "open"));
@@ -779,7 +785,6 @@
             console.error("Eroare la onSnapshot orders:", err);
           });
         },
-        // Ascultă toate mesajele de chat
         subscribeAllChatMessages() {
           const chatRef = collection(db, "chatMessages");
           this.unsubscribeAllChat = onSnapshot(chatRef, (snapshot) => {
@@ -876,13 +881,13 @@
         async finalizeTable(tableId) {
           if(!confirm(`Ești sigur că vrei să finalizezi masa ${tableId}?`)) return;
           try {
-            const docRef = doc(db,"sessions",tableId);
+            const docRef = doc(db,"sessions", tableId);
             await updateDoc(docRef, { sessionCode:null, status:"closed" });
             if(this.currentSessionCode) {
               const cRef = collection(db,"orders");
               const qRef = query(cRef, where("sessionCode","==", this.currentSessionCode), where("status","==","open"));
               const snap = await getDocs(qRef);
-              for(const docSnap of snap.docs){
+              for(const docSnap of snap.docs) {
                 await updateDoc(doc(db,"orders", docSnap.id), { status:"closed" });
               }
             }
@@ -909,6 +914,46 @@
             this.unsubscribeOrdersForCurrentTable = null;
           }
         },
+
+        /* Toggling categoriile */
+        toggleCategory(catKey) {
+          const idx = this.openedCategories.indexOf(catKey);
+          if (idx >= 0) {
+            this.openedCategories.splice(idx, 1);
+          } else {
+            this.openedCategories.push(catKey);
+          }
+        },
+
+        /* Meniul Zilei */
+        toggleSelectProduct(prod) {
+          const idx = this.selectedProducts.indexOf(prod);
+          if(idx >= 0) {
+            this.selectedProducts.splice(idx,1);
+          } else {
+            if(this.selectedProducts.length >= 3) {
+              alert("Poți alege exact 3 produse!");
+              return;
+            }
+            this.selectedProducts.push(prod);
+          }
+        },
+        async saveDailyMenu() {
+          if(this.selectedProducts.length !== 3) {
+            alert("Selectează exact 3 produse!");
+            return;
+          }
+          try {
+            await setDoc(doc(db,"specials","dailyMenu"), {
+              products: this.selectedProducts
+            });
+            alert("Meniul Zilei a fost salvat cu succes!");
+          } catch(err) {
+            console.error("Eroare la saveDailyMenu:", err);
+            alert("Nu s-a putut salva Meniul Zilei!");
+          }
+        },
+        // reîncărcăm stocări locale
         loadSessionCodeCache() {
           const saved = localStorage.getItem("sessionCodeCache");
           if(saved) {
@@ -941,45 +986,12 @@
               console.warn("Nu s-a putut parsa messagesSeen:", e);
             }
           }
-        },
-
-        /* -------------- Meniul Zilei -------------- */
-        toggleSelectProduct(prod) {
-          const idx = this.selectedProducts.indexOf(prod);
-          if(idx >= 0) {
-            // deselect
-            this.selectedProducts.splice(idx,1);
-          } else {
-            if(this.selectedProducts.length >= 3) {
-              alert("Poți alege exact 3 produse!");
-              return;
-            }
-            this.selectedProducts.push(prod);
-          }
-        },
-        async saveDailyMenu() {
-          if(this.selectedProducts.length !== 3) {
-            alert("Selectează exact 3 produse!");
-            return;
-          }
-          try {
-            await setDoc(doc(db,"specials","dailyMenu"), {
-              products: this.selectedProducts
-            });
-            alert("Meniul Zilei a fost salvat cu succes!");
-          } catch(err) {
-            console.error("Eroare la saveDailyMenu:", err);
-            alert("Nu s-a putut salva Meniul Zilei!");
-          }
         }
       },
       async mounted() {
-        // reîncărcăm stocări locale
         this.loadSessionCodeCache();
         this.loadOrdersSeen();
         this.loadMessagesSeen();
-
-        // ascultăm date (sesiuni, comenzi, chat)
         this.subscribeActiveSessions();
         this.subscribeAllOpenOrders();
         this.subscribeAllChatMessages();
