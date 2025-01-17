@@ -30,7 +30,6 @@
       background-color: #d35400;
     }
 
-    /* Buton verde (gradient + shadow) */
     .btn-green {
       background: linear-gradient(to right, #2ecc71, #27ae60);
       color: #fff;
@@ -45,7 +44,6 @@
       box-shadow: 0 0 8px #2ecc71, 0 0 20px #27ae60;
     }
 
-    /* Grid pentru 12 mese, 3 coloane */
     .grid-tables {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -103,6 +101,28 @@
       background-color: rgba(244,144,50,0.3);
       transition: background-color 2s ease;
     }
+
+    /* Stil listă produse meniu */
+    .products-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .prod-card {
+      border: 1px solid #f49032;
+      background: #1f2937;
+      border-radius: 6px;
+      padding: 0.5rem;
+      text-align: center;
+      cursor: pointer;
+    }
+    .prod-card:hover {
+      background-color: #2d3748;
+    }
+    .selected {
+      outline: 2px solid #2ecc71;
+    }
   </style>
 </head>
 <body>
@@ -112,6 +132,47 @@
     <!-- Buton: Afișează doar mesele ocupate sau toate -->
     <div class="mb-4 text-center">
       <button class="btn" @click="toggleShow">{{ toggleButtonLabel }}</button>
+    </div>
+
+    <!-- Buton: Configurează Meniul Zilei -->
+    <div class="mb-6 text-center">
+      <button class="btn-green" @click="showDailyMenuConfig = !showDailyMenuConfig">
+        {{ showDailyMenuConfig ? 'Ascunde configurare Meniul Zilei' : 'Configurează Meniul Zilei' }}
+      </button>
+    </div>
+
+    <!-- Secțiunea "Configurare Meniul Zilei" -->
+    <div v-if="showDailyMenuConfig" class="border border-yellow-500 p-4 rounded mb-4">
+      <h2 class="text-xl font-bold mb-2 text-center">Alege 3 produse</h2>
+      <div class="products-list">
+        <div 
+          v-for="(prod, idx) in allProducts" 
+          :key="idx"
+          class="prod-card"
+          :class="{ 'selected': selectedProducts.includes(prod) }"
+          @click="toggleSelectProduct(prod)"
+        >
+          <img 
+            :src="prod.image" 
+            alt="img" 
+            class="w-full h-32 object-cover mb-2 rounded"
+          />
+          <div class="text-sm font-bold">{{ prod.title }}</div>
+          <div class="text-sm text-gray-300">{{ prod.price }} Lei</div>
+        </div>
+      </div>
+      <div class="text-center mt-4">
+        <button 
+          class="btn-green"
+          :disabled="selectedProducts.length !== 3"
+          @click="saveDailyMenu"
+        >
+          Adaugă Meniul Zilei
+        </button>
+      </div>
+      <p class="text-center text-gray-400 mt-2">
+        (Trebuie să selectezi exact 3 produse)
+      </p>
     </div>
 
     <!-- Grid Mese -->
@@ -163,10 +224,8 @@
             :key="ord.orderId"
             class="ml-4 mt-1"
           >
-            <!-- Afisare comenzi -->
             <div class="text-sm text-gray-400 mb-1">
               <strong>Comanda #{{ oIdx + 1 }}</strong>
-
               <!-- Apare doar dacă e "pending" -->
               <button
                 class="btn-green ml-2"
@@ -208,11 +267,12 @@
       getFirestore,
       collection,
       doc,
-      updateDoc,
+      getDocs,
       onSnapshot,
       query,
       where,
-      getDocs
+      updateDoc,
+      setDoc
     } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
     import { createApp } from "https://cdn.jsdelivr.net/npm/vue@3/dist/vue.esm-browser.js";
 
@@ -232,30 +292,32 @@
     const waiterApp = createApp({
       data() {
         return {
-          // 12 mese
+          // Mese
           twelveTables: Array.from({ length: 12 }, (_, i) => ({
             tableId: `Masa numărul ${i + 1}`,
             isOccupied: false,
-            hasNewOrder: false,  // vibrație la comenzi noi sau mesaje noi
+            hasNewOrder: false,
             sessionCode: ""
           })),
-
           showOccupiedOnly: false,
-
           currentTableId: "",
           currentSessionCode: "",
           orders: [],
-
           newOrderHighlight: false,
 
           sessionCodeCache: new Map(),
           ordersSeen: new Set(),
-          messagesSeen: new Set(), // stocăm ID-uri de mesaje chat deja văzute
+          messagesSeen: new Set(),
 
           unsubscribeOrdersForCurrentTable: null,
           unsubscribeAllSessions: null,
           unsubscribeAllOrders: null,
-          unsubscribeAllChat: null
+          unsubscribeAllChat: null,
+
+          // Meniul zilei
+          showDailyMenuConfig: false,
+          allProducts: [],          // toate produsele disponibile
+          selectedProducts: []      // produsele selectate (max 3)
         };
       },
       computed: {
@@ -298,19 +360,16 @@
           this.showOccupiedOnly = !this.showOccupiedOnly;
         },
 
-        // 1) Ascultăm "sessions" active
         subscribeActiveSessions() {
           const sessionsRef = collection(db, "sessions");
           const q = query(sessionsRef, where("status", "==", "active"));
           this.unsubscribeAllSessions = onSnapshot(
             q,
             (snapshot) => {
-              // Reset la toate
               this.twelveTables.forEach((t) => {
                 t.isOccupied = false;
                 t.sessionCode = "";
               });
-              // Marcare mese active
               snapshot.forEach((docSnap) => {
                 const data = docSnap.data();
                 const tableId = docSnap.id;
@@ -320,15 +379,9 @@
                   this.twelveTables[idx].sessionCode = data.sessionCode || "";
                 }
               });
-            },
-            (err) => {
-              console.error("Eroare la onSnapshot sessions:", err);
-              alert("Nu putem asculta sesiunile active în timp real!");
             }
           );
         },
-
-        // 2) Ascultăm comenzile open -> vibrație dacă apare una nouă
         subscribeAllOpenOrders() {
           const ordersRef = collection(db, "orders");
           const q = query(ordersRef, where("status", "==", "open"));
@@ -339,22 +392,15 @@
                 if (change.type === "added") {
                   const data = change.doc.data();
                   const sCode = data.sessionCode;
-                  // Găsim masa
                   const idx = this.twelveTables.findIndex(t => t.sessionCode === sCode);
                   if (idx !== -1) {
                     this.twelveTables[idx].hasNewOrder = true;
                   }
                 }
               });
-            },
-            (err) => {
-              console.error("Eroare la onSnapshot orders:", err);
-              alert("Nu putem asculta comenzile în timp real!");
             }
           );
         },
-
-        // 3) Ascultăm toate mesajele de chat -> vibrație când apare un mesaj nou
         subscribeAllChatMessages() {
           const chatRef = collection(db, "chatMessages");
           this.unsubscribeAllChat = onSnapshot(
@@ -369,10 +415,8 @@
                       "messagesSeen",
                       JSON.stringify(Array.from(this.messagesSeen))
                     );
-                    // determinăm masa
                     const tableNumber = data.tableNumber; 
                     const tableId = `Masa numărul ${tableNumber}`;
-                    // punem vibrație
                     const idx = this.twelveTables.findIndex(t => t.tableId === tableId);
                     if (idx !== -1) {
                       this.twelveTables[idx].hasNewOrder = true;
@@ -380,15 +424,10 @@
                   }
                 }
               });
-            },
-            (err) => {
-              console.error("Eroare la onSnapshot chatMessages:", err);
-              alert("Nu putem asculta mesajele de chat!");
             }
           );
         },
 
-        // Clic pe masă -> cerem cod, apoi ascultăm comenzile pt. acea masă
         bubbleClick(tbl) {
           if (!tbl.isOccupied) {
             alert("Masa e goală (nicio sesiune activă)!");
@@ -408,10 +447,8 @@
             tbl.sessionCode = code.trim();
             this.openTable(tbl.tableId, code.trim());
           }
-          // oprim vibrație
           tbl.hasNewOrder = false;
         },
-
         openTable(tableId, sessionCode) {
           this.currentTableId = tableId;
           this.currentSessionCode = sessionCode;
@@ -420,7 +457,6 @@
           }
           this.listenOrdersBySession(sessionCode);
         },
-
         listenOrdersBySession(sCode) {
           const cRef = collection(db, "orders");
           const qRef = query(cRef, where("sessionCode", "==", sCode), where("status", "==", "open"));
@@ -455,14 +491,9 @@
                   this.newOrderHighlight = false;
                 }, 2000);
               }
-            },
-            (err) => {
-              console.error("Eroare onSnapshot orders by session:", err);
-              alert("Nu putem asculta comenzile pentru această masă!");
             }
           );
         },
-
         async placeOrder(orderId) {
           try {
             await updateDoc(doc(db, "orders", orderId), { orderStatus: "placed" });
@@ -471,17 +502,14 @@
             alert("Nu s-a putut schimba statusul comenzii!");
           }
         },
-
         async finalizeTable(tableId) {
           if (!confirm(`Ești sigur că vrei să finalizezi masa ${tableId}?`)) {
             return;
           }
           try {
-            // Închidem sesiunea
             const docRef = doc(db, "sessions", tableId);
             await updateDoc(docRef, { sessionCode: null, status: "closed" });
 
-            // Închidem comenzile "open"
             if (this.currentSessionCode) {
               const cRef = collection(db, "orders");
               const qRef = query(
@@ -508,7 +536,6 @@
             alert("Eroare la finalizarea mesei!");
           }
         },
-
         updateSessionCache(tableId, code) {
           this.sessionCodeCache.set(tableId, code);
           localStorage.setItem(
@@ -516,7 +543,6 @@
             JSON.stringify(Array.from(this.sessionCodeCache.entries()))
           );
         },
-
         resetCurrent() {
           this.currentTableId = "";
           this.currentSessionCode = "";
@@ -560,22 +586,68 @@
               console.warn("Nu s-a putut parsa messagesSeen:", e);
             }
           }
+        },
+
+        // -------------- Meniul Zilei --------------
+        // 1) preluăm toate produsele (din "products" colectia, sau altceva)
+        async loadAllProducts() {
+          try {
+            // presupunem că ai o colecție "products" în Firestore
+            const cRef = collection(db, "products");
+            const snap = await getDocs(cRef);
+            const result = [];
+            snap.forEach((docItem) => {
+              result.push(docItem.data());
+            });
+            this.allProducts = result;
+          } catch (err) {
+            console.error("Eroare la loadAllProducts:", err);
+          }
+        },
+        toggleSelectProduct(prod) {
+          // max 3 produse
+          const idx = this.selectedProducts.indexOf(prod);
+          if (idx >= 0) {
+            // deselectăm
+            this.selectedProducts.splice(idx, 1);
+          } else {
+            if (this.selectedProducts.length >= 3) {
+              alert("Poți alege exact 3 produse!");
+              return;
+            }
+            this.selectedProducts.push(prod);
+          }
+        },
+        async saveDailyMenu() {
+          if (this.selectedProducts.length !== 3) {
+            alert("Selectează exact 3 produse!");
+            return;
+          }
+          try {
+            // salvăm doc "dailyMenu" în colecția "specials"
+            await setDoc(doc(db, "specials", "dailyMenu"), {
+              products: this.selectedProducts
+            });
+            alert("Meniul Zilei a fost salvat!");
+          } catch (err) {
+            console.error("Eroare la saveDailyMenu:", err);
+            alert("Nu s-a putut salva Meniul Zilei!");
+          }
         }
       },
-      mounted() {
-        // Restaurează
+      async mounted() {
+        // reîncărcăm stocări locale
         this.loadSessionCodeCache();
         this.loadOrdersSeen();
         this.loadMessagesSeen();
 
-        // Ascultăm mesele active
+        // ascultăm date
         this.subscribeActiveSessions();
-
-        // Ascultăm comenzile "open"
         this.subscribeAllOpenOrders();
-
-        // Ascultăm mesajele de chat
         this.subscribeAllChatMessages();
+
+        // încărcăm toate produsele (pt. Meniul Zilei)
+        await this.loadAllProducts();
       }
     });
 
