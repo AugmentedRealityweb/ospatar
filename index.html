@@ -316,7 +316,358 @@
 
           // Meniul zilei
           showDailyMenuConfig: false,
-          allProducts: [],          // toate produsele disponibile
+          products: {
+            brunch: [
+              {
+                title: "Toast cu avocado",
+                description: "Avocado, toast, ouă poșate, roșii cherry.",
+                price: 25,
+                image: "https://i.giphy.com/9qZEmFR8fs7CrCgy4T.webp",
+                ingredients: ["Avocado", "Toast", "Ouă", "Roșii cherry"]
+              },
+              {
+                title: "Ouă Benedict",
+                description: "Ouă poșate, sos hollandaise, șuncă.",
+                price: 30,
+                image: "https://i.giphy.com/X3E37CTy55jNK.webp",
+                ingredients: ["Ouă", "Hollandaise", "Șuncă"]
+              },
+              {
+                title: "Clătite",
+                description: "Clătite, sirop de arțar, fructe proaspete.",
+                price: 20,
+                image: "https://i.giphy.com/5zu5JovduWFBS.webp",
+                ingredients: ["Făină", "Ouă", "Sirop de arțar", "Fructe"]
+              }
+            ],
+            soups: [
+              {
+                title: "Ciorbă de burtă",
+                description: "Tradițională, smântână, ardei iute (350/50g).",
+                price: 18,
+                image: "https://bistropoint.ro/wp-content/uploads/2021/12/Ciorba-de-Burta-380gr.jpg",
+                ingredients: ["Burtă", "Smântână", "Ardei iute"]
+              },
+              {
+                title: "Supă cremă de roșii",
+                description: "Roșii proaspete, crutoane, busuioc (350g).",
+                price: 15,
+                image: "https://www.lalena.ro/images/uploaded/600x_Supa-crema-de-rosii-108.jpg",
+                ingredients: ["Roșii", "Crutoane", "Busuioc"]
+              },
+              {
+                title: "Ciorbă de legume",
+                description: "Legume proaspete, zeamă de lămâie (400g).",
+                price: 12,
+                image: "https://www.prestij.ro/uploads/produse/1440/94--ciorba-taraneasca-de-legume.jpg",
+                ingredients: ["Morcovi", "Cartofi", "Ceapă", "Apio"]
+              },
+              {
+                title: "Ciorbă de văcuță",
+                description: "360/40g. O ciorbă aromată, cu carne fragedă de vită și legume.",
+                price: 19,
+                image: "https://www.anytacooking.ro/static/i/imagini-blog/ciorb-de-v-cu-anyta-cooking-1727155724.jpg",
+                ingredients: ["Carne de vită", "Legume", "Condimente"]
+              },
+              {
+                title: "Ciorbă de perișoare",
+                description: "400/100g. Perișoare pufoase din carne, în zeamă bogată de legume.",
+                price: 17,
+                image: "https://i.ytimg.com/vi/SEVbryAQlm8/maxresdefault.jpg",
+                ingredients: ["Carne tocată", "Legume", "Orez"]
+              },
+              {
+                title: "Ciorbă de pui a la grec",
+                description: "360/40g. Delicată și cremoasă, cu carne de pui și lămâie.",
+                price: 17,
+                image: "https://adygio.com/wp-content/uploads/2017/01/Ciorba-de-pui-a-la-grec-adygio-kitchen.jpg",
+                ingredients: ["Pui", "Orez", "Lămâie", "Smântână"]
+              },
+              {
+                title: "Ciorbă de coaste de porc afumate",
+                description: "330/70g. Gust intens, cu coaste de porc afumate și legume.",
+                price: 20,
+                image: "https://cumsa.ro/wp-content/uploads/2023/05/cum-sa-faci-ciorba-de-costita-afumata-reteta-si-lista-cu-ingrediente.jpg",
+                ingredients: ["Coaste porc afumate", "Legume", "Condimente"]
+              },
+              {
+                title: "Ciorbă de pui",
+                description: "360/40g. Ușoară și sănătoasă, ideală pentru un prânz rapid.",
+                price: 15,
+                image: "https://img-global.cpcdn.com/recipes/a681d87a3edc0a14/680x482cq70/ciorba-de-cartofi-cu-pui-fotografie-re%C8%9Beta.jpg",
+                ingredients: ["Carne de pui", "Legume", "Zeamă clară"]
+              },
+              {
+                title: "Ciorbă de porc țărănească",
+                description: "360/40g. Adevărată rețetă țărănească, cu carne de porc și zarzavaturi.",
+                price: 18,
+                image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSchTsD7L1tXHyZu2aTJoSHnDEFpPaguWP4fw&s",
+                ingredients: ["Porc", "Legume", "Borș"]
+              },
+              {
+                title: "Ciorbă de fasole",
+                description: "400g. Fasole boabe și zarzavaturi, perfectă cu ardei iute.",
+                price: 15,
+                image: "https://thumbor.unica.ro/unsafe/1200x800/smart/filters:format(webp):contrast(8):quality(75)/https://retete.unica.ro/wp-content/uploads/2010/06/ciorba-de-fasole-1-e1505228989189.jpg",
+                ingredients: ["Fasole boabe", "Legume", "Condimente"]
+              },
+              {
+                title: "Ciorbă de porc a la grec",
+                description: "360/40g. Cu carne de porc, ușor acrișoară, foarte gustoasă.",
+                price: 18,
+                image: "https://www.zebracateringcluj.ro/wp-content/uploads/2019/09/ciorba-a-la-grec-temp-scaled.jpg",
+                ingredients: ["Porc", "Zeamă de lămâie", "Smântână"]
+              },
+              {
+                title: "Ciorbă de coaste afumate",
+                description: "360/40g. Similară cu cea de porc afumat, dar cu o notă suplimentară de fum.",
+                price: 21,
+                image: "https://zdvi.cname.ro/_/101485-reteta-zilei-ciorba-de-cartofi-cu-afumatura.html/mediaPool/Reteta_09_378917885.jpg",
+                ingredients: ["Coaste afumate", "Legume", "Condimente"]
+              }
+            ],
+            pasta: [
+              {
+                title: "Spaghete Carbonara",
+                description: "Spaghetti, bacon, parmezan, ouă.",
+                price: 28,
+                image: "https://i.giphy.com/dZRlFW1sbFEpG.webp",
+                ingredients: ["Spaghetti", "Bacon", "Parmezan", "Ouă"]
+              },
+              {
+                title: "Penne Arrabbiata",
+                description: "Penne, sos de roșii picant, usturoi.",
+                price: 25,
+                image: "https://i.giphy.com/f0N7csaAc6t60OmXkm.webp",
+                ingredients: ["Penne", "Roșii", "Usturoi", "Ardei iute"]
+              },
+              {
+                title: "Tagliatelle Alfredo",
+                description: "Tagliatelle, sos Alfredo, pui.",
+                price: 30,
+                image: "https://i.giphy.com/xOML6s8aBmAtlLwujM.webp",
+                ingredients: ["Tagliatelle", "Pui", "Parmezan", "Smântână"]
+              }
+            ],
+            main: [
+              {
+                title: "Mușchiuleț de porc",
+                description: "Mușchiuleț, cartofi copți, mozzarella, bacon.",
+                price: 45,
+                image: "https://i.giphy.com/NRS40PZGqScW4Tm2F5.webp",
+                ingredients: ["Porc", "Cartofi", "Mozzarella", "Bacon"]
+              },
+              {
+                title: "Tomahawk porc",
+                description: "Carne de porc, cartofi, sos brun.",
+                price: 41,
+                image: "https://i.giphy.com/KDskfOILt91T2.webp",
+                ingredients: ["Tomahawk", "Cartofi", "Sos brun"]
+              },
+              {
+                title: "Ceafă sfărâmată",
+                description: "Ceafă, piure de cartofi, ardei copți.",
+                price: 36,
+                image: "https://i.giphy.com/l378puWI9Fpi4OApO.webp",
+                ingredients: ["Ceafă porc", "Piure", "Ardei copți"]
+              },
+              {
+                title: "Copanele la cuptor",
+                description: "110g. Copanele fragede, rumenite la cuptor.",
+                price: 25,
+                image: "https://www.cosmincondimente.ro/wp-content/uploads/2020/05/Reteta-friptura-de-pui-la-cuptor-condimente-cosmin-2.jpg",
+                ingredients: ["Pui", "Condimente", "Ulei"]
+              },
+              {
+                title: "Șnițel din piept de pui",
+                description: "100g/120g. Șnițel crocant, din piept de pui proaspăt.",
+                price: 20,
+                image: "https://www.lauralaurentiu.ro/wp-content/uploads/2017/11/snitel-din-piept-de-pui-reteta-pas-cu-pas-cum-se-face-snitel-de-pui-snitel-de-pui-in-pesmet-reteta-cu-poze.jpg",
+                ingredients: ["Piept de pui", "Pesmet", "Ou"]
+              },
+              {
+                title: "Cotlet de porc la grătar",
+                description: "110/200g. Cotlet suculent, fript la grătar.",
+                price: 27,
+                image: "https://ro.santokuknives.co.uk/cdn/shop/articles/grilled-pork-chops_small-image-456638.jpg?v=1675378527",
+                ingredients: ["Cotlet de porc", "Condimente"]
+              },
+              {
+                title: "Pulpă de pui la grătar",
+                description: "200g. Marinată ușor, apoi friptă perfect la grătar.",
+                price: 24,
+                image: "https://savoriurbane.com/wp-content/uploads/2019/05/Pulpe-de-pui-la-gr%C4%83tar-marinate-cu-usturoi-%C8%99i-ierburi-aromatice-reteta-savori-urbane.jpg",
+                ingredients: ["Pulpă pui", "Condimente"]
+              },
+              {
+                title: "Pulpă de pui la tavă",
+                description: "200g. Fragedă și suculentă, gătită la foc mediu.",
+                price: 24,
+                image: "https://cdn.hellotaste.ro/wp-content/uploads/2023/11/cele-mai-bune-pulpe-de-pui-la-cuptor.png",
+                ingredients: ["Pulpă pui", "Condimente"]
+              },
+              {
+                title: "Tochitură cu mămăliguță",
+                description: "150/150g. Bucăți de carne de porc, cârnați și sos savuros.",
+                price: 35,
+                image: "https://mediaflux.ro/wp-content/uploads/strawberry/2022/07/Reteta-tochitura-de-porc-c-1200x675.webp",
+                ingredients: ["Carne porc", "Mămăligă", "Brânză (opțional)"]
+              },
+              {
+                title: "Ceafă de porc la grătar",
+                description: "116g. Ceafă fragedă și gustoasă.",
+                price: 28,
+                image: "https://amadalivrare.ro/wp-content/uploads/2020/05/amada-CEAFA-DE-PORC-LA-GRATAR-1200x1200-1.jpg",
+                ingredients: ["Ceafă porc", "Condimente"]
+              },
+              {
+                title: "Varză călită cu Kaiseri",
+                description: "300/160g. Varză călită lent, amestecată cu kaizer.",
+                price: 22,
+                image: "https://www.andreearaicu.ro/wp-content/uploads/2019/09/shutterstock_759372946.jpg",
+                ingredients: ["Varză", "Kaiser", "Condimente"]
+              },
+              {
+                title: "Sarmale cu mămăliguță",
+                description: "180/150g. Rețetă tradițională, servită cu mămăliguță caldă.",
+                price: 30,
+                image: "https://restaurantprovenceiancului.ro/wp-content/uploads/2022/09/Sarmale-cu-mamaliguta.jpg",
+                ingredients: ["Carne tocată", "Varză murată", "Mămăligă"]
+              },
+              {
+                title: "Pulpă de vită la tavă",
+                description: "70g. Bucată mică, dar delicioasă, frăgezită la cuptor.",
+                price: 32,
+                image: "https://cdn.hellotaste.ro/wp-content/uploads/2022/07/friptura-de-vita-la-cuptor-1200x800.jpg",
+                ingredients: ["Pulpă vită", "Condimente"]
+              },
+              {
+                title: "Chiftele din pulpă de porc",
+                description: "150g. Chiftele rumenite, consistente.",
+                price: 18,
+                image: "https://www.fanatik.ro/wp-content/thumbnails/tKqCIE13hYeAT7XrV3wu3kKlm6o=/1200x0/smart/filters:contrast(5):format(jpeg):quality(80)/wp-content/uploads/2022/01/maxresdefault-2.jpg",
+                ingredients: ["Carne de porc", "Pesmet", "Condimente"]
+              },
+              {
+                title: "Iahnie de fasole cu kaizer",
+                description: "300/150g. Fasole gustoasă, combinată cu kaizer aromat.",
+                price: 20,
+                image: "https://www.bucatareselevesele.ro/wp-content/uploads/2015/01/fasole-cu-kaizer-22-e1424981098407.jpg",
+                ingredients: ["Fasole boabe", "Kaiser", "Ceapă"]
+              },
+              {
+                title: "Piept de pui la grătar",
+                description: "110g. Ușor și gustos, perfect pentru diete.",
+                price: 19,
+                image: "https://gratar.ro/wp-content/uploads/2023/07/piept-de-pui-la-gratar-scaled.jpg",
+                ingredients: ["Piept pui", "Condimente"]
+              },
+              {
+                title: "Pulpă de pui dezosată",
+                description: "100g. Pulpă fără os, gătită rapid și uniform.",
+                price: 21,
+                image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQCEAb5iLbW6UMw-CbrX2kTUCYJKgRhBZ6iqQ&s",
+                ingredients: ["Pulpă pui dezosată", "Condimente"]
+              },
+              {
+                title: "Cotlet de porc la tavă",
+                description: "100/50g. Fraged, copt lent în tavă cu mirodenii.",
+                price: 26,
+                image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR7BJ2Hks0y3Mh3Id1LBLTOxQnaj1ZDo6Ykxw&s",
+                ingredients: ["Cotlet porc", "Condimente"]
+              },
+              {
+                title: "Chiftele din pulpă de porc (2 buc)",
+                description: "150g. Două chiftele mari, prăjite până devin aurii.",
+                price: 18,
+                image: "https://bucatesavuroase.ro/wp-content/uploads/2024/01/chiftele-de-porc.jpg",
+                ingredients: ["Carne porc", "Pesmet", "Ou"]
+              }
+            ],
+            desserts: [
+              {
+                title: "Tiramisu",
+                description: "Prăjitură italiană cu cafea, mascarpone.",
+                price: 20,
+                image: "https://i.giphy.com/L2mf2cMkd2m7BJCjX7.webp",
+                ingredients: ["Cafea", "Mascarpone", "Pișcoturi"]
+              },
+              {
+                title: "Pavlova",
+                description: "Bezea, frișcă, fructe de pădure.",
+                price: 18,
+                image: "https://i.giphy.com/iiwu9bTOZ1HiM.webp",
+                ingredients: ["Bezea", "Frișcă", "Fructe de pădure"]
+              },
+              {
+                title: "Cheesecake",
+                description: "Cheesecake cu dulceață de căpșuni.",
+                price: 22,
+                image: "https://i.giphy.com/Xi2UAW7kTQvHa.webp",
+                ingredients: ["Brânză", "Biscuiți", "Căpșuni"]
+              }
+            ],
+            drinks: [
+              {
+                title: "Cocktail",
+                description: "Băutură răcoritoare cu fructe proaspete și alcool fin.",
+                price: 28,
+                image: "https://i.giphy.com/AxVvjTt0Fa1WEHzMM8.webp",
+                ingredients: ["Rom", "Fructe", "Gheață"]
+              },
+              {
+                title: "Ciocolată caldă",
+                description: "Cremă fierbinte de ciocolată cu topping de frișcă.",
+                price: 15,
+                image: "https://i.giphy.com/hPFKu8dKRRNgQ.webp",
+                ingredients: ["Ciocolată", "Lapte", "Frișcă"]
+              },
+              {
+                title: "Bere",
+                description: "Bere artizanală rece și spumoasă.",
+                price: 10,
+                image: "https://i.giphy.com/RkhJPJQJ2GPn02GMy6.webp",
+                ingredients: ["Malț", "Hamei", "Apă"]
+              }
+            ],
+            garnish: [
+              {
+                title: "Piure de cartofi",
+                description: "200g. Cremă fină de cartofi, bătută cu lapte și unt.",
+                price: 10,
+                image: "https://i.giphy.com/l0MYu3mmRtjxX28tq.webp",
+                ingredients: ["Cartofi", "Unt", "Lapte"]
+              },
+              {
+                title: "Pilaf de orez",
+                description: "100g/150g/200g. Orez aromat, fiert cu legume și condimente.",
+                price: 8,
+                image: "https://www.maggi.ro/sites/default/files/styles/image_744_x_419/public/srh_recipes/c624334e6943435f7246741f1db4d20f.png?h=c6980913&itok=Cwv50cS_",
+                ingredients: ["Orez", "Legume", "Condimente"]
+              },
+              {
+                title: "Cartofi prăjiți",
+                description: "100g. Cartofi crocanți, prăjiți în ulei încins.",
+                price: 10,
+                image: "https://lasafi.ro/wp-content/uploads/2023/02/Cartofi-Prajiti-scaled.jpg",
+                ingredients: ["Cartofi", "Ulei", "Sare"]
+              },
+              {
+                title: "Salată de varză",
+                description: "100g. Varză proaspătă, feliată subțire.",
+                price: 7,
+                image: "https://pofta-buna.com/wp-content/uploads/2023/12/Salata-coleslaw-de-varza-cu-iaurt-maioneza-morcov-vinegreta-reteta-originala-gina-bradea-6.jpg",
+                ingredients: ["Varză", "Sare", "Oțet"]
+              },
+              {
+                title: "Castraveți murați",
+                description: "50g. Castraveți acri, tăiați rondele.",
+                price: 5,
+                image: "https://fru-leg.ro/wp-content/uploads/2018/12/castraveti.jpg",
+                ingredients: ["Castraveți murați"]
+              }
+            ]
+          },          // toate produsele disponibile
           selectedProducts: []      // produsele selectate (max 3)
         };
       },
