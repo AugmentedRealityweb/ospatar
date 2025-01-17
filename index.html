@@ -203,7 +203,7 @@
 
     /* Configurare Firebase */
     const firebaseConfig = {
-      apiKey: "AIzaSyBahkhy2GgUW2wM5dxghoVt2bv0-6ZyWq",
+      apiKey: "AIzaSyBahkhy2GgUW2wM5dxghoVt2bv0-6ZyWqQ",
       authDomain: "restaurantapp-d0256.firebaseapp.com",
       projectId: "restaurantapp-d0256",
       storageBucket: "restaurantapp-d0256.firebasestorage.app",
@@ -473,7 +473,7 @@
         checkInactivity() {
           if (!this.lastActivityTime) return;
           const diff = Date.now() - this.lastActivityTime;
-          // De ex, 10 sec inactiv => reload
+          // După 10s inactiv => reload (exemplu)
           if (diff > 10000) {
             location.reload();
           }
